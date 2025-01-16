@@ -1,0 +1,37 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          BigInt       @id @default(autoincrement())
+  chatId      BigInt       @unique
+  messages    Message[]
+  name        String?
+  nick        String?      // Добавлено поле для никнейма
+  phoneNumber String?
+  position    String?
+  telegramID  BigInt?      // Добавлено поле для Telegram ID
+  birthday    DateTime?    // Новое поле для даты рождения
+  photo       String?      // адрес фото телеграм
+  timestamp   DateTime     @default(now())
+}
+
+
+model Message {
+  id           BigInt      @id @default(autoincrement())
+  content      String
+  type         String
+  timestamp    DateTime @default(now())
+  userId       BigInt
+  user         User     @relation(fields: [userId], references: [id])
+  text         String?
+  chatId       BigInt // Поле для хранения chatId
+  callbackData String? // Поле для хранения callback_data
+}
