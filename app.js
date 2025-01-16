@@ -64,7 +64,7 @@ bot.onText(/\/user_photo_new/, async (msg) => {
                 },
             });
 
-            bot.sendMessage(chatId, 'Ваша фотография успешно загружена!');
+            bot.sendMessage(chatId, 'Ваша фотография успешно загружена!\nЧтобы увидеть свою анкету нажмите /user_info');
         } catch (error) {
             console.error('Ошибка при сохранении фотографии:', error);
             bot.sendMessage(chatId, 'Произошла ошибка при сохранении фотографии.');
