@@ -19,8 +19,7 @@ const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
 // Установка команд бота в меню
 bot.setMyCommands([
-    { command: '/start', description: 'Начать регистрацию' },
-    { command: '/user_info', description: 'Показать информацию о пользователе' },
+    { command: '/start', description: 'Начать регистрацию / Показать анкету' },
     { command: '/user_edit', description: 'Изменить информацию о пользователе' },
     { command: '/user_show_all', description: 'Показать информацию о всех пользователях' },
     { command: '/user_photo_new', description: 'Загрузить новое фото' },
@@ -64,33 +63,12 @@ bot.onText(/\/user_photo_new/, async (msg) => {
                 },
             });
 
-            bot.sendMessage(chatId, 'Ваша фотография успешно загружена!\nЧтобы увидеть свою анкету нажмите /user_info');
+            bot.sendMessage(chatId, 'Ваша фотография успешно загружена!\nЧтобы увидеть свою анкету нажмите /start');
         } catch (error) {
             console.error('Ошибка при сохранении фотографии:', error);
             bot.sendMessage(chatId, 'Произошла ошибка при сохранении фотографии.');
         }
     });
-});
-
-
-bot.onText(/\/user_info/, async (msg) => {
-    const chatId = msg.chat.id;
-
-    const user = await checkUser(chatId);
-    if (!user) {
-        bot.sendMessage(chatId, 'Вы не зарегистрированы. Используйте /start для регистрации.');
-        return;
-    }
-
-    // Генерация информации о пользователе
-    const userInfo = generateUserInfo(user);
-
-    // Отправка фото (если оно есть)
-    if (user.photo) {
-        bot.sendPhoto(chatId, user.photo, { caption: userInfo });
-    } else {
-        bot.sendMessage(chatId, userInfo);
-    }
 });
 
 
@@ -182,8 +160,16 @@ bot.onText(/\/start/, async (msg) => {
             // Если никнейм отсутствует, запускаем процесс редактирования
             bot.sendMessage(chatId, 'Профиль вашего пользователя не до конца заполнен. Нажмите на /user_edit');
         } else {
-            let userInfo = generateUserInfo(user);
-            bot.sendMessage(chatId, `Вы уже зарегистрированы.\n${userInfo}\nДля редактирования анкеты нажмите /user_edit`);
+                // Генерация информации о пользователе
+                const userInfo = generateUserInfo(user);
+
+                // Отправка фото (если оно есть)
+                if (user.photo) {
+                    bot.sendPhoto(chatId, user.photo, { caption: userInfo });
+                } else {
+                    bot.sendMessage(chatId, userInfo);
+                }
+            bot.sendMessage(chatId, `Вы уже зарегистрированы.\nДля редактирования анкеты нажмите /user_edit`);
         }
         return;
     }
@@ -318,7 +304,7 @@ bot.on('callback_query', async (query) => {
                 },
             });
 
-            bot.sendMessage(chatId, 'Ваши данные успешно сохранены!\nВы можете нажать /user_info, чтобы увидеть свою анкету.');
+            bot.sendMessage(chatId, 'Ваши данные успешно сохранены!\nВы можете нажать /start, чтобы увидеть свою анкету.');
         } catch (error) {
             console.error('Ошибка при сохранении данных:', error);
             bot.sendMessage(chatId, 'Произошла ошибка при сохранении данных.');
@@ -330,7 +316,7 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// Генерация информации о пользователе для /user_info
+// Генерация информации о пользователе
 function generateUserInfo(user) {
     return `- ФИО: ${user.name}\n` +
            `- Ник: ${"@" + user.nick}\n` +
