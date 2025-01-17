@@ -234,6 +234,7 @@ bot.onText(/\/start/, async (msg) => {
     const telegramID = msg.from.id; // ID пользователя в Telegram
     const nick = msg.from.username || 'Нет никнейма'; // Никнейм пользователя
 
+    console.log(chatId);
     // Проверяем, зарегистрирован ли пользователь
     const user = await checkUser(chatId);
 
