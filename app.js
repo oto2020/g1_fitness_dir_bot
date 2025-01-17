@@ -5,7 +5,7 @@ const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT;
 
 // Middleware для парсинга JSON и формы
 app.use(bodyParser.json());
