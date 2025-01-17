@@ -360,7 +360,7 @@ bot.on('callback_query', async (query) => {
         const finalPosition = `${position}${selections.map((sel) => `|${sel}`).join('')}`;
         const timestamp = new Date();
 
-        const [day, month, year] = userSteps[chatId].birthday.split('.'); // Разделяем дату
+        const [day, month, year] = birthday.split('.'); // Разделяем дату
         const isoBirthday = new Date(`${year}-${month}-${day}`).toISOString(); // Преобразуем в формат ISO
 
         try {
@@ -383,7 +383,6 @@ bot.on('callback_query', async (query) => {
                     phoneNumber,
                     position: finalPosition,
                     birthday: isoBirthday, // Добавляем дату рождения
-                    timestamp,
                 },
             });
 
