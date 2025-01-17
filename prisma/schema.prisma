@@ -14,7 +14,7 @@ model User {
   chatId      BigInt       @unique
   messages    Message[]
   name        String?
-  nick        String?      // Добавлено поле для никнейма
+  nick        String?      @unique // Добавлено поле для никнейма
   phoneNumber String?      @unique
   position    String?
   telegramID  BigInt?      // Добавлено поле для Telegram ID
