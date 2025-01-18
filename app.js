@@ -37,13 +37,13 @@ async function checkUser(chatId) {
     });
     return user;
 }
-bot.onText(/\/set_photo_for_user@(.*)/, async (msg, match) => {
+bot.onText(/\/photo@(.*)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const nick = match[1]; // Получаем никнейм из команды
 
     // Проверяем, если пользователь отправил команду с никнеймом
     if (!nick) {
-        bot.sendMessage(chatId, 'Никнейм пользователя не указан. Пожалуйста, используйте формат: /set_photo_for_user@nick');
+        bot.sendMessage(chatId, 'Никнейм пользователя не указан. Пожалуйста, используйте формат: /photo@nick');
         return;
     }
 
@@ -74,7 +74,7 @@ bot.onText(/\/set_photo_for_user@(.*)/, async (msg, match) => {
             });
 
             bot.sendMessage(chatId, `Фото для пользователя @${nick} успешно обновлено!`);
-            bot.sendMessage(process.env.GROUP_ID, `Обновлено фото пользователя ${user.name}:\n Просмотр: /show_profile_for_user@${user.nick}`);
+            bot.sendMessage(process.env.GROUP_ID, `Обновлено фото пользователя ${user.name}:\n Просмотр: /profile@${user.nick}`);
         } catch (error) {
             console.error('Ошибка при обновлении фото:', error);
             bot.sendMessage(chatId, 'Произошла ошибка при обновлении фото.');
@@ -135,24 +135,24 @@ bot.onText(/\/user_edit/, async (msg) => {
     userSteps[chatId] = { step: 0, name: user.name, position: user.position, phoneNumber: user.phoneNumber };
 
     // Запросить контакт
-    bot.sendMessage(chatId, 'Пожалуйста, поделитесь своим контактом для редактирования данных. Нажмите на кнопку "Поделиться контактом" ', {
+    bot.sendMessage(chatId, 'Нажмите на кнопку "☎️ Поделиться контактом"\n\nОна большая, снизу, в клавиатуре бота. Если клавиатура бота скрыта её можно раскрыть, нажав на кнопку показа клавиатуры, слева от отправки голосовых сообщений и emojii.', {
         reply_markup: {
             keyboard: [
-                [{ text: 'Поделиться контактом', request_contact: true }]
+                [{ text: '☎️ Поделиться контактом', request_contact: true }]
             ],
             one_time_keyboard: true
         }
     });
 });
 
-// Обработка команды /show_profile_for_user@nick
-bot.onText(/\/show_profile_for_user@(.+)/, async (msg, match) => {
+// Обработка команды /profile@nick
+bot.onText(/\/profile@(.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const nick = match[1]; // Получаем никнейм из команды
 
     // Проверяем, если пользователь отправил команду с никнеймом
     if (!nick) {
-        bot.sendMessage(chatId, 'Никнейм пользователя не указан. Пожалуйста, используйте формат: /show_profile_for_user@nick');
+        bot.sendMessage(chatId, 'Никнейм пользователя не указан. Пожалуйста, используйте формат: /profile@nick');
         return;
     }
 
@@ -184,7 +184,7 @@ bot.onText(/\/users/, async (msg) => {
     const user = await checkUser(chatId);
 
     if (user.nick!=="igo4ek" && user.nick!=="Nadya28_97") {
-        bot.sendMessage(chatId, `У вас недостаточно прав для выполнения этой команды.\nВы можете просмотреть только свою анкету: /show_profile_for_user@${user.nick}`);
+        bot.sendMessage(chatId, `У вас недостаточно прав для выполнения этой команды.\nВы можете просмотреть только свою анкету: /profile@${user.nick}`);
         return;
     }
     if (!user) {
@@ -192,8 +192,8 @@ bot.onText(/\/users/, async (msg) => {
         return;
     }
 
-    const users = await prisma.user.findMany();
-
+    let users = await prisma.user.findMany();
+    users = users.filter(user=>user.nick);// оставляем только тех, у кого есть ник
     if (users.length === 0) {
         bot.sendMessage(chatId, 'Нет зарегистрированных пользователей.');
         return;
@@ -252,7 +252,7 @@ bot.onText(/\/start/, async (msg) => {
                 } else {
                     bot.sendMessage(chatId, userInfo);
                 }
-            bot.sendMessage(chatId, `Вы уже зарегистрированы.\nДля редактирования анкеты нажмите /user_edit`);
+            bot.sendMessage(chatId, `Вы уже зарегистрированы.\nНажмите /start, чтобы увидеть свою анкету,\n/set_photo, чтобы установить фотографию,\n/user_edit, чтобы редактировать профиль.`);
         }
         return;
     }
@@ -304,7 +304,7 @@ bot.on('message', async (msg) => {
         userSteps[chatId].name = msg.text;
         userSteps[chatId].step = 2;
 
-        bot.sendMessage(chatId, 'Теперь введите вашу должность:');
+        bot.sendMessage(chatId, 'Теперь введите вашу должность\nТренер/Руководитель подразделения/Директор');
     } else if (step === 2 && msg.text) {
         userSteps[chatId].position = msg.text;
         userSteps[chatId].step = 3;
@@ -386,8 +386,8 @@ bot.on('callback_query', async (query) => {
                 },
             });
 
-            bot.sendMessage(chatId, 'Ваши данные успешно сохранены!\nВы можете нажать /start, чтобы увидеть свою анкету.');
-            bot.sendMessage(process.env.GROUP_ID, `Сохранена анкета пользователя ${name}:\n Просмотр: /show_profile_for_user@${nick}`);
+            bot.sendMessage(chatId, 'Ваши данные успешно сохранены!\nНажмите /start, чтобы увидеть свою анкету,\n/set_photo, чтобы установить фотографию,\n/user_edit, чтобы редактировать профиль.');
+            bot.sendMessage(process.env.GROUP_ID, `Сохранена анкета пользователя ${name}:\n Просмотр: /profile@${nick}`);
             
         } catch (error) {
             console.error('Ошибка при сохранении данных:', error);
@@ -405,9 +405,9 @@ function generateUserInfo(user) {
     return `${user.name} ${"@" + user.nick}\n` +
            `- Телефон: ${user.phoneNumber}\n` +
            `- Должность: ${user.position}\n` +
-           `- Дата рождения: ${user.birthday ? user.birthday.toLocaleString(): 'не указан'}\n`+
-           `Анкета: /show_profile_for_user@${user.nick}\n`+ 
-           `Обновить фото: /set_photo_for_user@${user.nick}\n`;
+           `- Дата рождения: ${user.birthday ? user.birthday.toLocaleDateString('ru-RU'): 'не указан'}\n`+
+           `Анкета: /profile@${user.nick}\n`+ 
+           `Новое фото: /photo@${user.nick}\n`;
 }
 
 
