@@ -21,11 +21,8 @@ const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 bot.setMyCommands([
     { command: '/start', description: 'Начать регистрацию / Показать анкету' },
     { command: '/user_edit', description: 'Изменить информацию о себе' },
-    { command: '/set_photo', description: 'Обновить своё фото' },
     { command: '/users', description: 'Список всех пользователей' }
 ]);
-
-
 
 // Временное хранилище для шагов регистрации
 const userSteps = {};
@@ -37,28 +34,29 @@ async function checkUser(chatId) {
     });
     return user;
 }
-bot.onText(/\/photo@(.*)/, async (msg, match) => {
+
+bot.onText(/\/photo(.*)/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const nick = match[1]; // Получаем никнейм из команды
+    const telegramID = match[1]; // Получаем тг ид из команды
 
     // Проверяем, если пользователь отправил команду с никнеймом
-    if (!nick) {
-        bot.sendMessage(chatId, 'Никнейм пользователя не указан. Пожалуйста, используйте формат: /photo@nick');
+    if (!telegramID) {
+        bot.sendMessage(chatId, 'telegramID пользователя не указан. Пожалуйста, используйте формат: /phototelegramID');
         return;
     }
 
-    // Ищем пользователя по никнейму
+    // Ищем пользователя по telegramID
     const user = await prisma.user.findUnique({
-        where: { nick: nick },
+        where: { telegramID: parseInt(telegramID) },
     });
 
     if (!user) {
-        bot.sendMessage(chatId, `Пользователь с никнеймом @${nick} не найден.`);
+        bot.sendMessage(chatId, `Пользователь с telegramID ${telegramID} не найден.`);
         return;
     }
 
     // Запрашиваем новое фото у пользователя
-    bot.sendMessage(chatId, `Пожалуйста, отправьте новое фото для пользователя @${nick}.`);
+    bot.sendMessage(chatId, `Пожалуйста, отправьте новое фото для пользователя ${user.name}.`);
 
     // Ожидаем получения фотографии
     bot.once('photo', async (msg) => {
@@ -73,8 +71,8 @@ bot.onText(/\/photo@(.*)/, async (msg, match) => {
                 },
             });
 
-            bot.sendMessage(chatId, `Фото для пользователя @${nick} успешно обновлено!`);
-            bot.sendMessage(process.env.GROUP_ID, `Обновлено фото пользователя ${user.name}:\n Просмотр: /profile@${user.nick}`);
+            bot.sendMessage(chatId, `Фото для пользователя ${user.name} успешно обновлено!`);
+            bot.sendMessage(process.env.GROUP_ID, `Обновлено фото пользователя ${user.name}:\n Просмотр: /profile${parseInt(user.telegramID)}`);
         } catch (error) {
             console.error('Ошибка при обновлении фото:', error);
             bot.sendMessage(chatId, 'Произошла ошибка при обновлении фото.');
@@ -82,40 +80,6 @@ bot.onText(/\/photo@(.*)/, async (msg, match) => {
     });
 });
 
-
-bot.onText(/\/set_photo/, async (msg) => {
-    const chatId = msg.chat.id;
-
-    // Проверяем, зарегистрирован ли пользователь
-    const user = await checkUser(chatId);
-    if (!user) {
-        bot.sendMessage(chatId, 'Вы не зарегистрированы. Используйте /start для регистрации.');
-        return;
-    }
-
-    // Запросить фотографию у пользователя
-    bot.sendMessage(chatId, 'Пожалуйста, отправьте вашу фотографию.');
-
-    // Ожидаем получения фотографии
-    bot.once('photo', async (msg) => {
-        const fileId = msg.photo[msg.photo.length - 1].file_id; // Получаем file_id самой большой фотографии
-
-        try {
-            // Обновляем информацию о пользователе, добавляя file_id фотографии
-            await prisma.user.update({
-                where: { chatId },
-                data: {
-                    photo: fileId, // Сохраняем photo (file_id)
-                },
-            });
-
-            bot.sendMessage(chatId, 'Ваша фотография успешно загружена!\nЧтобы увидеть свою анкету нажмите /start');
-        } catch (error) {
-            console.error('Ошибка при сохранении фотографии:', error);
-            bot.sendMessage(chatId, 'Произошла ошибка при сохранении фотографии.');
-        }
-    });
-});
 
 
 
@@ -145,24 +109,24 @@ bot.onText(/\/user_edit/, async (msg) => {
     });
 });
 
-// Обработка команды /profile@nick
-bot.onText(/\/profile@(.+)/, async (msg, match) => {
+// Обработка команды /profiletelegramID
+bot.onText(/\/profile(.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const nick = match[1]; // Получаем никнейм из команды
+    const telegramID = match[1]; // Получаем никнейм из команды
 
     // Проверяем, если пользователь отправил команду с никнеймом
-    if (!nick) {
-        bot.sendMessage(chatId, 'Никнейм пользователя не указан. Пожалуйста, используйте формат: /profile@nick');
+    if (!telegramID) {
+        bot.sendMessage(chatId, 'telegramID пользователя не указан. Пожалуйста, используйте формат: /profiletelegramID');
         return;
     }
 
-    // Ищем пользователя по никнейму
+    // Ищем пользователя по telegramID
     const user = await prisma.user.findUnique({
-        where: { nick: nick },
+        where: { telegramID: parseInt(telegramID) },
     });
 
     if (!user) {
-        bot.sendMessage(chatId, `Пользователь с никнеймом @${nick} не найден.`);
+        bot.sendMessage(chatId, `Пользователь с telegramID ${telegramID} не найден.`);
         return;
     }
 
@@ -183,8 +147,8 @@ bot.onText(/\/users/, async (msg) => {
 
     const user = await checkUser(chatId);
 
-    if (user.nick!=="igo4ek" && user.nick!=="Nadya28_97") {
-        bot.sendMessage(chatId, `У вас недостаточно прав для выполнения этой команды.\nВы можете просмотреть только свою анкету: /profile@${user.nick}`);
+    if (user.nick!=="igo4ek"&& user.nick!=="Nadya28_97") {
+        bot.sendMessage(chatId, `У вас недостаточно прав для выполнения этой команды.\nВы можете просмотреть только свою анкету: /profile${parseInt(user.telegramID)}`);
         return;
     }
     if (!user) {
@@ -193,7 +157,7 @@ bot.onText(/\/users/, async (msg) => {
     }
 
     let users = await prisma.user.findMany();
-    users = users.filter(user=>user.nick);// оставляем только тех, у кого есть ник
+    users = users.filter(user=>user.telegramID);// оставляем только тех, у кого есть telegramID
     if (users.length === 0) {
         bot.sendMessage(chatId, 'Нет зарегистрированных пользователей.');
         return;
@@ -234,12 +198,12 @@ bot.onText(/\/start/, async (msg) => {
     const telegramID = msg.from.id; // ID пользователя в Telegram
     const nick = msg.from.username || 'Нет никнейма'; // Никнейм пользователя
 
-    console.log(chatId);
+    console.log(msg);
     // Проверяем, зарегистрирован ли пользователь
     const user = await checkUser(chatId);
 
     if (user) {
-        if (!user.nick || user.nick === 'Нет никнейма' || !user.birthday) {
+        if (!user.telegramID || !user.birthday) {
             // Если никнейм отсутствует, запускаем процесс редактирования
             bot.sendMessage(chatId, 'Профиль вашего пользователя не до конца заполнен. Нажмите на /user_edit');
         } else {
@@ -252,7 +216,7 @@ bot.onText(/\/start/, async (msg) => {
                 } else {
                     bot.sendMessage(chatId, userInfo);
                 }
-            bot.sendMessage(chatId, `Вы уже зарегистрированы.\nНажмите /start, чтобы увидеть свою анкету,\n/set_photo, чтобы установить фотографию,\n/user_edit, чтобы редактировать профиль.`);
+            bot.sendMessage(chatId, `Вы уже зарегистрированы.\nНажмите /start, чтобы увидеть свою анкету,\n/photo${user.telegramID}, чтобы установить фотографию,\n/user_edit, чтобы редактировать профиль.`);
         }
         return;
     }
@@ -281,7 +245,7 @@ bot.on('contact', async (msg) => {
         const phoneNumber = contact.phone_number.replace('+', '');
         userSteps[chatId].phoneNumber = phoneNumber; // Сохраняем номер телефона
         userSteps[chatId].telegramID = msg.from.id; // Сохраняем telegramID
-        userSteps[chatId].nick = msg.from.username || 'Нет никнейма'; // Сохраняем nick
+        userSteps[chatId].nick = msg.from.username || 'нет'; // Сохраняем nick
         userSteps[chatId].step = 1;
 
         bot.sendMessage(chatId, 'Спасибо за контакт! Теперь, пожалуйста, введите ваше ФИО:');
@@ -386,8 +350,8 @@ bot.on('callback_query', async (query) => {
                 },
             });
 
-            bot.sendMessage(chatId, 'Ваши данные успешно сохранены!\nНажмите /start, чтобы увидеть свою анкету,\n/set_photo, чтобы установить фотографию,\n/user_edit, чтобы редактировать профиль.');
-            bot.sendMessage(process.env.GROUP_ID, `Сохранена анкета пользователя ${name}:\n Просмотр: /profile@${nick}`);
+            bot.sendMessage(chatId, `Ваши данные успешно сохранены!\nНажмите /start, чтобы увидеть свою анкету,\n/photo${telegramID}, чтобы установить фотографию,\n/user_edit, чтобы редактировать профиль.`);
+            bot.sendMessage(process.env.GROUP_ID, `Сохранена анкета пользователя ${name}:\n Просмотр: /profile${telegramID}`);
             
         } catch (error) {
             console.error('Ошибка при сохранении данных:', error);
@@ -406,8 +370,9 @@ function generateUserInfo(user) {
            `- Телефон: ${user.phoneNumber}\n` +
            `- Должность: ${user.position}\n` +
            `- Дата рождения: ${user.birthday ? user.birthday.toLocaleDateString('ru-RU'): 'не указан'}\n`+
-           `Анкета: /profile@${user.nick}\n`+ 
-           `Новое фото: /photo@${user.nick}\n`;
+           `- Фото: ${user.photo ? 'есть' : 'нет'}\n`+
+           `Анкета: /profile${parseInt(user.telegramID)}\n`+ 
+           `Новое фото: /photo${parseInt(user.telegramID)}\n`;
 }
 
 

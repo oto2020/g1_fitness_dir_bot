@@ -17,7 +17,7 @@ model User {
   nick        String?      @unique // Добавлено поле для никнейма
   phoneNumber String?      @unique
   position    String?
-  telegramID  BigInt?      // Добавлено поле для Telegram ID
+  telegramID  BigInt?      @unique // Добавлено поле для Telegram ID
   birthday    DateTime?    // Новое поле для даты рождения
   photo       String?      // адрес фото телеграм
   timestamp   DateTime     @default(now())
