@@ -10,7 +10,6 @@ generator client {
 model User {
   id          BigInt       @id @default(autoincrement())
   chatId      BigInt       @unique
-  messages    Message[]
   name        String?
   nick        String?      @unique // Поле для никнейма
   phoneNumber String?      @unique
@@ -63,17 +62,6 @@ model User {
   flag40      Boolean      @default(false)
 }
 
-model Message {
-  id           BigInt      @id @default(autoincrement())
-  content      String
-  type         String
-  timestamp    DateTime @default(now())
-  userId       BigInt
-  user         User     @relation(fields: [userId], references: [id])
-  text         String?
-  chatId       BigInt   // Поле для хранения chatId
-  callbackData String?  // Поле для хранения callback_data
-}
 
 model UserFlags {
   id          BigInt   @id @default(autoincrement())
