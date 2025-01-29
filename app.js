@@ -154,7 +154,7 @@ bot.onText(/\/role(.*)/, async (msg, match) => {
 
     let currentUser = checkUser(chatId);
     // Проверяем роль пользователя
-    if (!currentUser && currentUser.role !== 'админ') {
+    if (!currentUser || currentUser.role !== 'админ') {
         bot.sendMessage(chatId, '❌ У вас недостаточно прав для выполнения этой команды');
         return;
     }
