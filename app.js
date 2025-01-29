@@ -60,6 +60,12 @@ bot.onText(/\/profile(.+)/, async (msg, match) => {
         return;
     }
 
+    // Проверяем роль пользователя
+    if (user.role !== 'админ') {
+        bot.sendMessage(chatId, '❌ У вас недостаточно прав для выполнения этой команды');
+        return;
+    }
+
     // Генерируем информацию о пользователе
     const userInfo = generateUserInfo(user);
 
@@ -408,8 +414,9 @@ bot.onText(/\/users/, async (msg) => {
 
     const user = await checkUser(chatId);
 
-    if (user.nick !== "igo4ek" && user.nick !== "Nadya28_97") {
-        bot.sendMessage(chatId, `У вас недостаточно прав для выполнения этой команды.\nВы можете просмотреть только свою анкету: /profile${parseInt(user.telegramID)}`);
+    // Проверяем роль пользователя
+    if (user.role !== 'админ') {
+        bot.sendMessage(chatId, '❌ У вас недостаточно прав для выполнения этой команды');
         return;
     }
     if (!user) {
