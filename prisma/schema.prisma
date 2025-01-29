@@ -97,6 +97,7 @@ model VPTRequest {
   screenshotUserId   String   @map("ScreenshotUser_uniqueId") @db.VarChar(255)
   visitTime      String   @db.VarChar(255) // Утро, Обед, Вечер, Весь день
   phoneNumber    String   @db.VarChar(255)
+  photo          String?      // Адрес фото скриншота экрана телеграм
   comment        String?  @db.VarChar(1000)
   createdAt      DateTime @default(now())
   status         String?   @db.VarChar(255)
