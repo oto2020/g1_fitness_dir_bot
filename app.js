@@ -60,12 +60,6 @@ bot.onText(/\/profile(.+)/, async (msg, match) => {
         return;
     }
 
-    // Проверяем роль пользователя
-    if (user.role !== 'админ') {
-        bot.sendMessage(chatId, '❌ У вас недостаточно прав для выполнения этой команды');
-        return;
-    }
-
     // Генерируем информацию о пользователе
     const userInfo = generateUserInfo(user);
 
@@ -155,6 +149,12 @@ bot.onText(/\/role(.*)/, async (msg, match) => {
 
     if (!user) {
         bot.sendMessage(chatId, `Пользователь с telegramID ${telegramID} не найден.`);
+        return;
+    }
+
+    // Проверяем роль пользователя
+    if (user.role !== 'админ') {
+        bot.sendMessage(chatId, '❌ У вас недостаточно прав для выполнения этой команды');
         return;
     }
 
