@@ -20,7 +20,9 @@ model User {
   timestamp   DateTime     @default(now())
   vpt_list    String?      // Новое строковое поле
   role        String?      @default("пользователь") // пользователь/редактор/админ
-  flag01      Boolean      @default(false) // Булевые флаги
+
+  // Флаги
+  flag01      Boolean      @default(false)
   flag02      Boolean      @default(false)
   flag03      Boolean      @default(false)
   flag04      Boolean      @default(false)
@@ -60,11 +62,45 @@ model User {
   flag38      Boolean      @default(false)
   flag39      Boolean      @default(false)
   flag40      Boolean      @default(false)
-}
 
+  vptRequests VPTRequest[] // Связь с заявками на ВПТ
+}
 
 model UserFlags {
   id          BigInt   @id @default(autoincrement())
   name        String   // Название флага
   description String?  // Описание флага
+}
+
+model ScreenshotUser {
+  uniqueId         String   @id @db.VarChar(255)
+  sender           String   @default("Координатор")
+  create_time      DateTime @default(now())
+  homeStartX       Int      @default(150)
+  homeStartY       Int      @default(210)
+  homeWidth        Int      @default(860)
+  homeHeight       Int      @default(810)
+  f11StartX        Int      @default(150)
+  f11StartY        Int      @default(210)
+  f11Width         Int      @default(860)
+  f11Height        Int      @default(810)
+  upscaleFactor    Int      @default(2)
+  borderColor      String   @default("Silver") @db.VarChar(45)
+  borderThickness  Int      @default(20)
+
+  vptRequests VPTRequest[] // Связь с заявками на ВПТ
+}
+
+model VPTRequest {
+  id             BigInt   @id @default(autoincrement())
+  userId         BigInt   @map("User_id")
+  screenshotUserId   String   @map("ScreenshotUser_uniqueId") @db.VarChar(255)
+  visitTime      String   @db.VarChar(255) // Утро, Обед, Вечер, Весь день
+  phoneNumber    String   @db.VarChar(255)
+  comment        String?  @db.VarChar(1000)
+  createdAt      DateTime @default(now())
+  status         String?   @db.VarChar(255)
+
+  user           User     @relation(fields: [userId], references: [id])
+  screenshotUser     ScreenshotUser @relation(fields: [screenshotUserId], references: [uniqueId])
 }
