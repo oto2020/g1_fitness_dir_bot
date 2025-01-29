@@ -152,10 +152,10 @@ bot.onText(/\/role(.*)/, async (msg, match) => {
         return;
     }
 
-    let currentUser = checkUser(chatId);
+    let currentUser = await checkUser(chatId);
     // Проверяем роль пользователя
     if (!currentUser || currentUser.role !== 'админ') {
-        bot.sendMessage(chatId, '❌ У вас недостаточно прав для выполнения этой команды');
+        bot.sendMessage(chatId, '❌ ' + currentUser.name + ', у вас недостаточно прав для выполнения этой команды.\n' + 'Ваша роль: ' + currentUser.role);
         return;
     }
 
@@ -416,10 +416,11 @@ bot.onText(/\/users/, async (msg) => {
     const user = await checkUser(chatId);
 
     // Проверяем роль пользователя
-    if (user.role !== 'админ') {
-        bot.sendMessage(chatId, '❌ У вас недостаточно прав для выполнения этой команды');
+    if (!user || user.role !== 'админ') {
+        bot.sendMessage(chatId, '❌ ' + user.name + ', у вас недостаточно прав для выполнения этой команды.\n' + 'Ваша роль: ' + user.role);
         return;
     }
+
     if (!user) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы. Используйте /start для регистрации.');
         return;
