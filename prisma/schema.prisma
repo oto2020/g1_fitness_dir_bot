@@ -20,6 +20,7 @@ model User {
   timestamp   DateTime     @default(now())
   vpt_list    String?      // Новое строковое поле
   role        String?      @default("пользователь") // пользователь/редактор/админ
+  wishVptCount BigInt      @default(0)
 
   // Флаги
   flag01      Boolean      @default(false)
@@ -100,7 +101,15 @@ model VPTRequest {
   photo          String?      // Адрес фото скриншота экрана телеграм
   comment        String?  @db.VarChar(1000)
   createdAt      DateTime @default(now())
-  status         String?   @db.VarChar(255)
+
+  // Возможные статусы:
+  // Не в работе → vpt_not_in_work
+  // В работе → vpt_in_work
+  // Проведено(ожидание продажи) → vpt_completed_waiting_sale
+  // Проведено(продажи не будет) → vpt_completed_no_sale
+  // Отказ тренера → vpt_not_completed_trainer_decline
+  // Отказ клиента → vpt_not_completed_client_decline
+  status         String?   @db.VarChar(255) 
 
   user           User     @relation(fields: [userId], references: [id])
   screenshotUser     ScreenshotUser @relation(fields: [screenshotUserId], references: [uniqueId])
