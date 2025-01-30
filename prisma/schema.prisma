@@ -94,8 +94,8 @@ model ScreenshotUser {
 
 model VPTRequest {
   id             BigInt   @id @default(autoincrement())
-  userId         BigInt   @map("User_id")
-  screenshotUserId   String   @map("ScreenshotUser_uniqueId") @db.VarChar(255)
+  userId         BigInt   @map("userId")
+  screenshotUserId   String   @map("screenshotUserId") @db.VarChar(255)
   visitTime      String   @db.VarChar(255) // Утро, Обед, Вечер, Весь день
   phoneNumber    String   @db.VarChar(255)
   photo          String?      // Адрес фото скриншота экрана телеграм
@@ -103,13 +103,10 @@ model VPTRequest {
   createdAt      DateTime @default(now())
 
   // Возможные статусы:
-  // Не в работе → vpt_not_in_work
-  // В работе → vpt_in_work
-  // Проведено(ожидание продажи) → vpt_completed_waiting_sale
-  // Проведено(продажи не будет) → vpt_completed_no_sale
-  // Отказ тренера → vpt_not_completed_trainer_decline
-  // Отказ клиента → vpt_not_completed_client_decline
-  status         String?   @db.VarChar(255) 
+  // Не в работе → none
+  // В работе → accepted
+  // Отказ тренера → rejected
+  status         String?   @db.VarChar(255) @default("none")
 
   user           User     @relation(fields: [userId], references: [id])
   screenshotUser     ScreenshotUser @relation(fields: [screenshotUserId], references: [uniqueId])

@@ -673,6 +673,23 @@ function sendVptListInlineKeyboard(bot, chatId, telegramID) {
     });
 }
 
+
+async function updateVPTRequestStatus(requestId, newStatus) {
+    try {  
+      // Обновляем статус заявки
+      const updatedRequest = await prisma.vPTRequest.update({
+        where: { id: requestId },
+        data: { status: newStatus },
+      });
+  
+      console.log(`Статус заявки ID ${requestId} обновлен на ${newStatus}`);
+      return updatedRequest;
+    } catch (error) {
+      console.error('Ошибка при обновлении статуса заявки:', error);
+    }
+  }
+
+
 // Обработка выбора должностей
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
@@ -680,8 +697,19 @@ bot.on('callback_query', async (query) => {
 
     let queryTheme = query.data.split('@')[0];
     let queryValue = query.data.split('@')[1];
-    let queryTelegramID = query.data.split('@')[2];
+    let queryId = query.data.split('@')[2];
     // перед @ тема нажатой кнопки, после @ значение нажатой кнопки
+    if (queryTheme === 'vpt_status') {
+        console.log(queryId);
+        if (queryValue === 'accepted') {
+            await updateVPTRequestStatus(queryId, 'accepted');
+            bot.sendMessage(chatId, 'Вы приняли клиента, хорошей тренировки 🚀');
+        }
+        if (queryValue === 'rejected') {
+            await updateVPTRequestStatus(queryId, 'rejected');
+            bot.sendMessage(chatId, 'Кажется вы промахнулись... \nВы всё ещё можете принять заявку, нажав на соответствующую кнопку ✅ выше.\n\nЕсли желаете отклонить заявку -- опишите причину, почему вы отказываетесь 🙂');
+        }
+    }
     if (queryTheme === 'vpt_list') {
         let selection = '';
         if (queryValue === 'tz') {
@@ -712,16 +740,16 @@ bot.on('callback_query', async (query) => {
                 let vpt_list = userSteps[chatId].selections.join(', ');
                 // Обновляем проводимые ВПТ тренера
                 prisma.user.update({
-                    where: { telegramID: parseInt(queryTelegramID) },
+                    where: { telegramID: parseInt(queryId) },
                     data: {
                         vpt_list: vpt_list, // Обновляем поле `vpt_list`
                     },
                 })
                     .then(async () => {                        
-                        let modifiedUser = await getUserByTelegramID(queryTelegramID);
+                        let modifiedUser = await getUserByTelegramID(queryId);
 
-                        bot.sendMessage(chatId, `Проводимые ВПТ тренера ${modifiedUser.name} успешно обновлены на "${vpt_list}".\nПросмотр: /profile${parseInt(queryTelegramID)}`);
-                        bot.sendMessage(process.env.GROUP_ID, `Обновлены проводимые ВПТ тренера ${modifiedUser.name}:\nНовые проводимые ВПТ: "${vpt_list}"\nПросмотр: /profile${parseInt(queryTelegramID)}`);
+                        bot.sendMessage(chatId, `Проводимые ВПТ тренера ${modifiedUser.name} успешно обновлены на "${vpt_list}".\nПросмотр: /profile${parseInt(queryId)}`);
+                        bot.sendMessage(process.env.GROUP_ID, `Обновлены проводимые ВПТ тренера ${modifiedUser.name}:\nНовые проводимые ВПТ: "${vpt_list}"\nПросмотр: /profile${parseInt(queryId)}`);
                     })
                     .catch((error) => {
                         console.error('Ошибка при обновлении проводимых ВПТ:', error);
@@ -741,7 +769,7 @@ bot.on('callback_query', async (query) => {
 
                 try {
                     await prisma.user.upsert({
-                        where: { telegramID:queryTelegramID },
+                        where: { telegramID:queryId },
                         update: {
                             name,
                             phoneNumber,
