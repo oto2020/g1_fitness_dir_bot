@@ -689,6 +689,21 @@ async function updateVPTRequestStatus(requestId, newStatus) {
     }
   }
 
+  async function updateVPTRequestComment(requestId, newComment) {
+    try {  
+      // Обновляем статус заявки
+      const updatedRequest = await prisma.vPTRequest.update({
+        where: { id: requestId },
+        data: { comment: newComment },
+      });
+  
+      console.log(`Комментарий заявки ID ${requestId} обновлен на ${newComment}`);
+      return updatedRequest;
+    } catch (error) {
+      console.error('Ошибка при обновлении статуса заявки:', error);
+    }
+  }
+
 
 // Обработка выбора должностей
 bot.on('callback_query', async (query) => {
@@ -702,12 +717,33 @@ bot.on('callback_query', async (query) => {
     if (queryTheme === 'vpt_status') {
         console.log(queryId);
         if (queryValue === 'accepted') {
-            await updateVPTRequestStatus(queryId, 'accepted');
-            bot.sendMessage(chatId, 'Вы приняли клиента, хорошей тренировки 🚀');
+            let updatedVptRequest = await updateVPTRequestStatus(queryId, 'accepted');
+            console.log(updatedVptRequest);
+            updatedVptRequest = await updateVPTRequestComment(queryId, `Отдел: ${updatedVptRequest.goal}\nКомментарий: ${updatedVptRequest.comment}\n✅ Взято в работу\nТренер: ${user.name}`);
+            bot.sendPhoto(chatId, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
+            bot.sendPhoto(process.env.GROUP_ID, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
         }
         if (queryValue === 'rejected') {
-            await updateVPTRequestStatus(queryId, 'rejected');
             bot.sendMessage(chatId, 'Кажется вы промахнулись... \nВы всё ещё можете принять заявку, нажав на соответствующую кнопку ✅ выше.\n\nЕсли желаете отклонить заявку -- опишите причину, почему вы отказываетесь 🙂');
+        
+            // Ожидаем ввод причины отказа
+            const rejectionHandler = async (msg) => {
+                if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других пользователей
+
+                const rejectionReason = msg.text.trim(); // Получаем текст отказа
+                let updatedVptRequest = await updateVPTRequestStatus(queryId, 'rejected');
+                updatedVptRequest = await updateVPTRequestComment(queryId, `Отдел: ${updatedVptRequest.goal}\nКомментарий: ${updatedVptRequest.comment}\n❌ Причина отказа: \n"${rejectionReason}".\nТренер: ${user.name}`);
+
+                // Удаляем обработчик после получения причины
+                bot.removeListener('message', rejectionHandler);
+                
+                bot.sendPhoto(chatId, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
+                bot.sendPhoto(process.env.GROUP_ID, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
+            }
+
+            // Добавляем обработчик для получения причины отказа
+            bot.on('message', rejectionHandler);
+        
         }
     }
     if (queryTheme === 'vpt_list') {
