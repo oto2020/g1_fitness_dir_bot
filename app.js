@@ -1,11 +1,16 @@
 const express = require('express');
-const bodyParser = require('body-parser');
+const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
+
+const bodyParser = require('body-parser');
+
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT;
+app.use(express.json());
+app.use(cors());
 
 // Middleware для парсинга JSON и формы
 app.use(bodyParser.json());
@@ -16,6 +21,23 @@ const prisma = new PrismaClient();
 
 // Инициализация Telegram Bot
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
+
+// Функция для преобразования BigInt в строку
+const serializeBigInt = (obj) => {
+    return JSON.parse(JSON.stringify(obj, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+    ));
+};
+// Эндпоинт для получения всех пользователей
+app.get('/fitdirusers', async (req, res) => {
+    try {
+        const users = await prisma.user.findMany();
+        res.json(serializeBigInt(users));
+    } catch (error) {
+        console.error('Ошибка при получении пользователей:', error);
+        res.status(500).json({ error: 'Не удалось получить пользователей' });
+    }
+});
 
 // Установка команд бота в меню
 bot.setMyCommands([
