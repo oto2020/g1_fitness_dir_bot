@@ -850,7 +850,7 @@ bot.on('callback_query', async (query) => {
                         },
                     });
 
-                    bot.sendMessage(chatId, `Ваши данные успешно сохранены!\nДоступные команды:\n/profile${telegramID}, чтобы увидеть свою анкету,\n/photo${telegramID}, чтобы установить фотографию,\n/user_edit, чтобы редактировать профиль.`);
+                    bot.sendMessage(chatId, `Ваши данные успешно сохранены!\nДоступные команды:\n/profile${telegramID}, чтобы увидеть свою анкету\nТам можно будет: \n- редактировать анкету\n- обновить фото \n- установить количество желаемых ВПТ на месяц.`);
                     bot.sendMessage(process.env.GROUP_ID, `Сохранена анкета тренера ${name}:\n Просмотр: /profile${telegramID}`);
 
                 } catch (error) {
