@@ -105,21 +105,18 @@ async function getUserByTelegramID(telegramID) {
 async function getUsers() {
     // Получаем всех пользователей и добавляем счетчик
     const users = await prisma.$queryRaw`
-    SELECT 
-        u.name, 
-        u.chatId, 
-        u.vpt_list, 
-        u.wishVptCount,
-        COUNT(v.id) AS factVptCount
+    SELECT
+      u.*,
+      COUNT(v.id) AS factVptCount
     FROM 
-        User u
+      User u
     LEFT JOIN 
-        VPTRequest v 
-        ON u.id = v.userId
-        AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
-        AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
+      VPTRequest v 
+      ON u.id = v.userId
+      AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
+      AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
     GROUP BY 
-        u.id
+      u.id
   `;
 
     // Теперь можно использовать usersWithCounts
