@@ -50,78 +50,79 @@ bot.setMyCommands([
 const userSteps = {};
 const userMode = []
 
-// Проверка наличия тренера в базе данных
-async function getUserByChatId(chatId) {
-    // Получаем пользователя по chatId и добавляем счетчик
-    const user = await prisma.$queryRaw`
-    SELECT
-      u.*,
-      COUNT(v.id) AS factVptCount
-    FROM 
-      User u
-    LEFT JOIN 
-      VPTRequest v 
-      ON u.id = v.userId
-      AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
-      AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
-    WHERE 
-      u.chatId = ${chatId}
-    GROUP BY 
-      u.id
-  `;
-    return user.length ? user[0] : null; // Возвращаем первый найденный элемент или null
-}
-
-async function getUserByTelegramID(telegramID) {
-    // Получаем пользователя по chatId и добавляем счетчик
-    const user = await prisma.$queryRaw`
-    SELECT
-      u.*,
-      COUNT(v.id) AS factVptCount
-    FROM 
-      User u
-    LEFT JOIN 
-      VPTRequest v 
-      ON u.id = v.userId
-      AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
-      AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
-    WHERE 
-      u.telegramID = ${telegramID}
-    GROUP BY 
-      u.id
-  `;
-    return user.length ? user[0] : null; // Возвращаем первый найденный элемент или null
-}
-
-
-// Проверка наличия тренера в базе данных
-async function getUserByTelegramID(telegramID) {
-    const user = await prisma.user.findUnique({
-        where: { telegramID: parseInt(telegramID) },
-    });
-    return user;
-}
-
-async function getUsers() {
-    // Получаем всех пользователей и добавляем счетчик
-    const users = await prisma.$queryRaw`
-    SELECT
-      u.*,
-      COUNT(v.id) AS factVptCount
-    FROM 
-      User u
-    LEFT JOIN 
-      VPTRequest v 
-      ON u.id = v.userId
-      AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
-      AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
-    GROUP BY 
-      u.id
-  `;
-
-    // Теперь можно использовать usersWithCounts
-    return users;
-}
+// Один общий метод
+async function getAggregatedUsers({ chatId, telegramID } = {}) {
+    // Формируем WHERE-условия на лету
+    let conditions = [];
+    
+    if (chatId) {
+      // chatId - тип number, можно обернуть в parseInt
+      conditions.push(`u.chatId = ${parseInt(chatId)}`);
+    }
+    
+    if (telegramID) {
+      conditions.push(`u.telegramID = ${parseInt(telegramID)}`);
+    }
+  
+    // Если есть условия, добавляем WHERE + объединяем через AND
+    let whereClause = '';
+    if (conditions.length > 0) {
+      whereClause = `WHERE ${conditions.join(' AND ')}`;
+    }
+  
+    // Выполняем «сырой» запрос
+    // Обратите внимание: используем prisma.$queryRawUnsafe
+    // или формируем «шаблонными строками» с учётом экранирования
+    const results = await prisma.$queryRawUnsafe(`
+      SELECT
+        u.*,
+        COUNT(v.id) AS factVptCount,
+        SUM(CASE WHEN v.status = 'accepted' THEN 1 ELSE 0 END) AS acceptedStatusVptCount,
+        SUM(CASE WHEN v.status = 'rejected' THEN 1 ELSE 0 END) AS rejectedStatusVptCount,
+        SUM(
+          CASE 
+            WHEN v.status <> 'accepted'
+              AND v.status <> 'rejected'
+            THEN 1
+            ELSE 0
+          END
+        ) AS noneStatusVptCount
+      FROM User u
+      LEFT JOIN VPTRequest v
+        ON u.id = v.userId
+        AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
+        AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
+      ${whereClause}
+      GROUP BY u.id
+    `);
+  
+    // Возвращаем массив записей (могут быть 0,1 или несколько)
+    return results;
+  }
+  
+  // «Обёртка» для получения всех пользователей:
+  async function getUsers() {
+    // Без аргументов => нет WHERE => вернутся все пользователи
+    return await getAggregatedUsers();
+  }
+  
+  // «Обёртка» для получения одного пользователя по chatId:
+  async function getUserByChatId(chatId) {
+    // Вызываем общий метод с параметром chatId
+    const results = await getAggregatedUsers({ chatId });
+    // Возвращаем 1-го, если есть
+    return results.length ? results[0] : null;
+  }
+  
+  // «Обёртка» для получения одного пользователя по telegramID:
+  async function getUserByTelegramID(telegramID) {
+    // Вызываем общий метод
+    const results = await getAggregatedUsers({ telegramID });
+    // Возвращаем 1-го, если есть
+    return results.length ? results[0] : null;
+  }
+  
+  
 
 // Обработка команды /profiletelegramID
 bot.onText(/\/profile(.+)/, async (msg, match) => {
@@ -180,7 +181,7 @@ bot.onText(/\/name(.*)/, async (msg, match) => {
 
     // Ожидаем получения текста с новым ФИО
     const nameHandler = (msg) => {
-        if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других тренерей
+        if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других тренеров
 
         const newName = msg.text.trim(); // Получаем новое имя из сообщения
 
@@ -245,7 +246,7 @@ bot.onText(/\/role(.*)/, async (msg, match) => {
 
     // Ожидаем получения текста с новой ролью
     const roleHandler = (msg) => {
-        if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других тренерей
+        if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других тренеров
 
         const newRole = msg.text.trim().toLowerCase(); // Получаем новую роль из сообщения и переводим в нижний регистр
 
@@ -308,7 +309,7 @@ bot.onText(/\/position(.*)/, async (msg, match) => {
 
     // Ожидаем получения текста с новой должностью
     const positionHandler = (msg) => {
-        if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других тренерей
+        if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других тренеров
 
         const newPosition = msg.text.trim(); // Получаем новую должность из сообщения
 
@@ -393,7 +394,7 @@ bot.onText(/\/birthday(.*)/, async (msg, match) => {
 
     // Ожидаем получения текста с новой датой рождения
     const birthdayHandler = (msg) => {
-        if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других тренерей
+        if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других тренеров
 
         const birthday = msg.text.trim(); // Получаем дату рождения из сообщения
 
@@ -454,7 +455,7 @@ bot.onText(/\/photo(.*)/, async (msg, match) => {
 
     // Ожидаем получения фотографии, только если сообщение от того же тренера, который запросил обновление
     const photoHandler = (msg) => {
-        if (msg.chat.id !== chatId) return; // Игнорируем фотографии от других тренерей
+        if (msg.chat.id !== chatId) return; // Игнорируем фотографии от других тренеров
 
         const fileId = msg.photo[msg.photo.length - 1].file_id; // Получаем file_id самой большой фотографии
 
@@ -537,7 +538,7 @@ bot.onText(/\/wishvptcount(.*)/, async (msg, match) => {
     bot.on('message', wishHandler);
 });
 
-// Команда /users для вывода всех тренерей
+// Команда /users для вывода всех тренеров
 bot.onText(/\/users/, async (msg) => {
     const chatId = msg.chat.id;
 
@@ -557,11 +558,11 @@ bot.onText(/\/users/, async (msg) => {
     let users = await getUsers();
     users = users.filter(user => user.telegramID);// оставляем только тех, у кого есть telegramID
     if (users.length === 0) {
-        bot.sendMessage(chatId, 'Нет зарегистрированных тренерей.');
+        bot.sendMessage(chatId, 'Нет зарегистрированных тренеров.');
         return;
     }
 
-    // Разбиваем список тренерей на группы по 15
+    // Разбиваем список тренеров на группы по 15
     const usersInGroups = [];
     while (users.length > 0) {
         usersInGroups.push(users.splice(0, 15));
@@ -574,11 +575,14 @@ bot.onText(/\/users/, async (msg) => {
 
         for (let i = 0; i < totalGroups; i++) {
             const group = groups[i];
-            const usersInfo = group.map((user) => (`${user.name} (${user.factVptCount}/${user.wishVptCount}) @${user.nick}\nАнкета /profile${user.telegramID}\n`)).join('\n');
+            const usersInfo = group.map((user) => (
+                `${user.name} (⏳ ${user.noneStatusVptCount} | ✅ ${user.acceptedStatusVptCount} | ❌ ${user.rejectedStatusVptCount} / 🎯: ${user.wishVptCount})\n@${user.nick}\nАнкета /profile${user.telegramID}\n`
+              )).join('\n');
+              
 
             // Отправляем сообщение с информацией о части группы
             const part = `${i + 1}/${totalGroups}`;
-            await bot.sendMessage(chatId, `Часть ${part} тренерей:\n\n${usersInfo}\nЧасть ${part} тренерей.`);
+            await bot.sendMessage(chatId, `Часть ${part} тренеров:\n\n${usersInfo}\nЧасть ${part} тренеров.`);
 
             // Задержка между сообщениями (например, 2 секунды)
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -870,13 +874,18 @@ bot.on('callback_query', async (query) => {
 // Генерация информации о тренере
 function generateUserInfo(user) {
     return `Анкета: /profile${parseInt(user.telegramID)}\n\n` +
-        `${user.name} (${user.factVptCount}/${user.wishVptCount}) ${"@" + user.nick}\n` + `Изменить /name${parseInt(user.telegramID)}\n\n` +
+        `${user.name} ${"@" + user.nick}\n` + `Изменить /name${parseInt(user.telegramID)}\n\n` +
+        `Заявки за этот месяц:\n` +
+        `⏳ ${user.noneStatusVptCount} | неразобранные: /vpt_none${parseInt(user.telegramID)}\n` +
+        `✅ ${user.acceptedStatusVptCount} | принятые: /vpt_accepted${parseInt(user.telegramID)} \n` + 
+        `❌ ${user.rejectedStatusVptCount} | отклоненные: /vpt_rejected${parseInt(user.telegramID)} \n` +
+        `🎯 ${user.wishVptCount} | запланировано ВПТ на месяц\nИзменить /wishvptcount${parseInt(user.telegramID)}\n\n` +
+        
         `- Телефон: \n${user.phoneNumber}\n\n` +
         `- Должность: ${user.position}\nИзменить /position${parseInt(user.telegramID)}\n\n` +
         `- Роль: ${user.role}\nИзменить /role${parseInt(user.telegramID)}\n\n` +
         `- Проводимые ВПТ: ${user.vpt_list}\nИзменить /vpt_list${parseInt(user.telegramID)}\n\n` +
         `- Дата рождения: ${user.birthday ? user.birthday.toLocaleDateString('ru-RU') : 'не указан'}\nИзменить /birthday${parseInt(user.telegramID)}\n\n` +
-        `- Желаемых ВПТ на месяц: ${user.wishVptCount}\nИзменить /wishvptcount${parseInt(user.telegramID)}\n\n` +
         `- Фото: ${user.photo ? 'есть' : 'нет'}\nИзменить /photo${parseInt(user.telegramID)}\n-------------------------\n\n`;
 }
 
