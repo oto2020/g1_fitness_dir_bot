@@ -733,6 +733,11 @@ async function updateVPTRequestStatus(requestId, newStatus) {
 
 // Обработка выбора должностей
 bot.on('callback_query', async (query) => {
+    let nowdatetime = new Date().toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+
     const chatId = query.message.chat.id;
     let user = await getUserByChatId(chatId);
 
@@ -745,9 +750,10 @@ bot.on('callback_query', async (query) => {
         if (queryValue === 'accepted') {
             let updatedVptRequest = await updateVPTRequestStatus(queryId, 'accepted');
             console.log(updatedVptRequest);
-            updatedVptRequest = await updateVPTRequestComment(queryId, `Отдел: ${updatedVptRequest.goal}\nКомментарий: ${updatedVptRequest.comment}\n✅ Взято в работу\nТренер: ${user.name}`);
-            bot.sendPhoto(chatId, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
-            bot.sendPhoto(process.env.GROUP_ID, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
+            updatedVptRequest = await updateVPTRequestComment(queryId, `${updatedVptRequest.comment}\n\n${nowdatetime}\n✅ Взято в работу`);
+            let captionText = `Отдел: ${updatedVptRequest.goal}\nКомментарий:\n${updatedVptRequest.comment}\n\nТренер:${user.name}`;
+            bot.sendPhoto(chatId, updatedVptRequest.photo, { caption: captionText });
+            bot.sendPhoto(process.env.GROUP_ID, updatedVptRequest.photo, { caption: captionText });
         }
         if (queryValue === 'rejected') {
             bot.sendMessage(chatId, 'Кажется вы промахнулись... \nВы всё ещё можете принять заявку, нажав на соответствующую кнопку ✅ выше.\n\nЕсли желаете отклонить заявку -- опишите причину, почему вы отказываетесь 🙂');
@@ -758,7 +764,7 @@ bot.on('callback_query', async (query) => {
 
                 const rejectionReason = msg.text.trim(); // Получаем текст отказа
                 let updatedVptRequest = await updateVPTRequestStatus(queryId, 'rejected');
-                updatedVptRequest = await updateVPTRequestComment(queryId, `Отдел: ${updatedVptRequest.goal}\nКомментарий: ${updatedVptRequest.comment}\n❌ Причина отказа: \n"${rejectionReason}".\nТренер: ${user.name}`);
+                updatedVptRequest = await updateVPTRequestComment(queryId, `${updatedVptRequest.comment}\n\n${nowdatetime}\n❌ Причина отказа: \n"${rejectionReason}"`);
 
                 // Удаляем обработчик после получения причины
                 bot.removeListener('message', rejectionHandler);
@@ -889,6 +895,157 @@ function generateUserInfo(user) {
         `- Фото: ${user.photo ? 'есть' : 'нет'}\nИзменить /photo${parseInt(user.telegramID)}\n-------------------------\n\n`;
 }
 
+// Регулярка отлавливает три варианта команд:
+// /vpt_none12345, /vpt_accepted12345, /vpt_rejected12345
+bot.onText(/\/vpt_(none|accepted|rejected)(\d+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const statusFromCommand = match[1];       // none|accepted|rejected
+    const telegramID = match[2];             // Например 5530746845
+
+    // Получаем текущего пользователя (кто вызывает команду)
+    const currentUser = await getUserByChatId(chatId);
+    if (!currentUser) {
+        bot.sendMessage(chatId, 'Вы не зарегистрированы или отсутствуете в базе. Используйте /start');
+        return;
+    }
+
+    // Проверяем, есть ли вообще такой тренер с указанным telegramID
+    const targetUser = await getUserByTelegramID(telegramID);
+    if (!targetUser) {
+        bot.sendMessage(chatId, `Пользователь c telegramID ${telegramID} не найден.`);
+        return;
+    }
+
+    // Выполняем поиск заявок по userId и нужному статусу
+    let vptRequests;
+    try {
+        // Берём заявки конкретного пользователя, у которых status = statusFromCommand
+        vptRequests = await prisma.vPTRequest.findMany({
+            where: {
+                userId: targetUser.id,
+                status: statusFromCommand
+            },
+            orderBy: { createdAt: 'desc' } // чтобы самые свежие были первыми
+        });
+    } catch (error) {
+        console.error('Ошибка при получении заявок:', error);
+        bot.sendMessage(chatId, 'Произошла ошибка при получении заявок.');
+        return;
+    }
+
+    if (!vptRequests || vptRequests.length === 0) {
+        bot.sendMessage(chatId, `Нет заявок со статусом "${statusFromCommand}" для тренера ${targetUser.name}.`);
+        return;
+    }
+
+    // Функция отправки фото с экспоненциальной задержкой при ошибке 429
+    async function sendPhotoWithRetry(chatId, photoFileIdOrUrl, caption, extra, maxAttempts = 5) {
+        let attempt = 0;
+        while (attempt < maxAttempts) {
+            try {
+                // Пытаемся отправить
+                return await bot.sendPhoto(chatId, photoFileIdOrUrl, {
+                    caption,
+                    ...extra
+                });
+            } catch (err) {
+                // Проверяем, не "Too Many Requests" ли
+                if (err.response && err.response.statusCode === 429) {
+                    const retryAfter = err.response.body.parameters.retry_after || (2 ** attempt);
+                    console.warn(`Превышен лимит сообщений. Повтор через ${retryAfter} секунд (попытка ${attempt + 1} из ${maxAttempts})`);
+                    await new Promise(res => setTimeout(res, (retryAfter + 1) * 1000));
+                    attempt++;
+                } else {
+                    // Какая-то другая ошибка
+                    console.error('Ошибка при отправке фото:', err);
+                    // Не пытаемся дальше, выходим
+                    break;
+                }
+            }
+        }
+        // Если все попытки исчерпаны
+        bot.sendMessage(chatId, 'Не удалось отправить сообщение из-за превышения лимита или ошибки сети.');
+    }
+
+    // Перебираем заявки и отправляем по одной
+    for (const request of vptRequests) {
+
+        // Собираем текст сообщения
+        const createdDateStr = request.createdAt.toLocaleString('ru-RU', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+
+        const captionText = 
+            `Заявка ${request.goal} #${request.id}\n` +
+            `Тренер: ${targetUser.name} (@${targetUser.nick})\n\n` +
+            `Дата создания: ${createdDateStr}\n` +
+            `📞: ${request.phoneNumber}\n` +
+            `Комментарий:\n${request.comment ?? '—'}\n\n` +
+            `Текущий статус: ${request.status=='none'?'неразобрано':request.status=='accepted'?'принято':'отклонено'}`;
+
+        // Формируем список кнопок
+        // Всегда: Беру, Не беру
+        const row1 = [
+            {
+                text: '✅ Беру',
+                callback_data: `vpt_status@accepted@${request.id}`
+            },
+            {
+                text: '❌ Не беру',
+                callback_data: `vpt_status@rejected@${request.id}`
+            }
+        ];
+        // Для админа добавим второй ряд
+        const row2 = [
+            {
+                text: '⚠️ Повторно',
+                callback_data: `vpt_request@povtorno@${request.id}`
+            },
+            {
+                text: '🗑 Удалить',
+                callback_data: `vpt_request@remove@${request.id}`
+            }
+        ];
+
+        let inline_keyboard = [];
+
+        // 1) row1 только для владельца заявки (если текущий пользователь == владелец)
+        if (currentUser.id == request.userId) {
+            inline_keyboard.push(row1);
+        }
+
+        // 2) row2 только для админа (если role == 'админ')
+        if (currentUser.role == 'админ') {
+            inline_keyboard.push(row2);
+        }
+
+        // Пытаемся отправить сообщение с фото
+        try {
+            if (request.photo) {
+                // Есть фото
+                await sendPhotoWithRetry(chatId, request.photo, captionText, {
+                    reply_markup: {
+                        inline_keyboard
+                    }
+                });
+            } else {
+                // Фото нет, отправляем просто текст
+                // (тоже оборачиваем в try-catch на всякий случай, но 429
+                //  на sendMessage возникает реже)
+                await bot.sendMessage(chatId, captionText, {
+                    reply_markup: { inline_keyboard }
+                });
+            }
+        } catch (error) {
+            console.error('Ошибка при отправке заявки:', error);
+            // Если не получилось отправить одну — логируем и идём дальше к следующей
+        }
+
+        // Небольшая задержка между сообщениями (можно дополнительно "смягчить" анти-спам)
+        await new Promise(r => setTimeout(r, 500));
+    }
+});
 
 
 
