@@ -757,7 +757,7 @@ bot.on('callback_query', async (query) => {
             try {
                 // 1. Парсим requestId
                 const requestId = parseInt(queryId, 10);
-
+        
                 // 2. Находим заявку
                 let request = await prisma.vPTRequest.findUnique({
                     where: { id: requestId },
@@ -766,16 +766,16 @@ bot.on('callback_query', async (query) => {
                     bot.sendMessage(chatId, 'Заявка не найдена или уже удалена.');
                     return;
                 }
-
+        
                 // 3. Дописываем к комментарию отметку о повторе
                 const updatedComment = `${request.comment}\n\n${nowdatetime}\n⚠️ Повторно!`;
-
+        
                 // Обновляем в базе
                 request = await prisma.vPTRequest.update({
                     where: { id: requestId },
                     data: { comment: updatedComment },
                 });
-
+        
                 // 4. Ищем владельца заявки (User), чтобы отправить ему
                 const requestOwner = await prisma.user.findUnique({
                     where: { id: request.userId },
@@ -784,18 +784,41 @@ bot.on('callback_query', async (query) => {
                     bot.sendMessage(chatId, 'Владелец заявки не найден или отсутствует chatId.');
                     return;
                 }
-
+        
                 // 5. Отправляем заявку владельцу
                 await sendSingleVPTRequestMessage(bot, requestOwner.chatId, requestOwner, requestOwner, request);
-
+        
+                // 5.b. Дублируем сообщение в группу без кнопок // <-- новое
+                const statusText =
+                    request.status === 'none'
+                        ? 'неразобрано'
+                        : request.status === 'accepted'
+                            ? 'принято'
+                            : 'отклонено';
+        
+                // Составим текст для группы (произвольно, как вам нужно)
+                const groupCaption =
+                    `Повторная заявка #${request.id}\n` +
+                    `Цель/отдел: ${request.goal}\n` +
+                    `Дата создания: ${nowdatetime}\n` +
+                    `Тренер: ${requestOwner.name} (@${requestOwner.nick})\n\n` +
+                    `Статус: ${statusText}\n\n` +
+                    `Комментарий:\n${request.comment ?? '—'}`;
+        
+                if (request.photo) {
+                    await bot.sendPhoto(process.env.GROUP_ID, request.photo, { caption: groupCaption });
+                } else {
+                    await bot.sendMessage(process.env.GROUP_ID, groupCaption);
+                }
+        
                 // 6. Сообщаем тому, кто нажал «Повторно», что заявка отправлена
-                bot.sendMessage(chatId, `Заявка #${request.id} повторно отправлена владельцу (chatId: ${requestOwner.chatId}).`);
-
+                bot.sendMessage(chatId, `Заявка #${request.id} повторно отправлена владельцу (chatId: ${requestOwner.chatId}) и продублирована в группу.`);
             } catch (err) {
                 console.error('Ошибка при повторной отправке заявки:', err);
                 bot.sendMessage(chatId, 'Произошла ошибка при повторной отправке заявки.');
             }
         }
+        
         else if (queryValue === 'remove') {
             try {
                 // Проверяем, что текущий пользователь (user) — админ
@@ -849,7 +872,7 @@ bot.on('callback_query', async (query) => {
             let updatedVptRequest = await updateVPTRequestStatus(queryId, 'accepted');
             console.log(updatedVptRequest);
             updatedVptRequest = await updateVPTRequestComment(queryId, `${updatedVptRequest.comment}\n\n${nowdatetime}\n✅ Взято в работу`);
-            let captionText = `Отдел: ${updatedVptRequest.goal}\nКомментарий:\n${updatedVptRequest.comment}\n\nТренер:${user.name}`;
+            let captionText = `Отдел: ${updatedVptRequest.goal}\nКомментарий:\n${updatedVptRequest.comment}\n\nТренер: ${user.name}`;
             bot.sendPhoto(chatId, updatedVptRequest.photo, { caption: captionText });
             bot.sendPhoto(process.env.GROUP_ID, updatedVptRequest.photo, { caption: captionText });
         }
@@ -867,8 +890,9 @@ bot.on('callback_query', async (query) => {
                 // Удаляем обработчик после получения причины
                 bot.removeListener('message', rejectionHandler);
 
-                bot.sendPhoto(chatId, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
-                bot.sendPhoto(process.env.GROUP_ID, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
+                let captionText = `Отдел: ${updatedVptRequest.goal}\nКомментарий:\n${updatedVptRequest.comment}\n\nТренер: ${user.name}`;
+                bot.sendPhoto(chatId, updatedVptRequest.photo, { caption: captionText });
+                bot.sendPhoto(process.env.GROUP_ID, updatedVptRequest.photo, { caption: captionText });
             }
 
             // Добавляем обработчик для получения причины отказа
@@ -1012,7 +1036,7 @@ function generateUserInfo(user) {
  */
 async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser, request, sendPhotoWithRetry = null) {
     // Шаг 1: Собираем текст сообщения
-    const createdDateStr = request.createdAt.toLocaleString('ru-RU', {
+    const nowdatetime = request.createdAt.toLocaleString('ru-RU', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
     });
@@ -1027,7 +1051,7 @@ async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser,
     const captionText =
         `Заявка ${request.goal} #${request.id}\n` +
         `Тренер: ${targetUser.name} (@${targetUser.nick})\n\n` +
-        `Дата создания: ${createdDateStr}\n` +
+        `Дата создания: ${nowdatetime}\n` +
         `📞: ${request.phoneNumber}\n` +
         `Комментарий:\n${request.comment ?? '—'}\n\n` +
         `Текущий статус: ${statusText}`;
