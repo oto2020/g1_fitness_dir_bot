@@ -54,22 +54,22 @@ const userMode = []
 async function getAggregatedUsers({ chatId, telegramID } = {}) {
     // Формируем WHERE-условия на лету
     let conditions = [];
-    
+
     if (chatId) {
-      // chatId - тип number, можно обернуть в parseInt
-      conditions.push(`u.chatId = ${parseInt(chatId)}`);
+        // chatId - тип number, можно обернуть в parseInt
+        conditions.push(`u.chatId = ${parseInt(chatId)}`);
     }
-    
+
     if (telegramID) {
-      conditions.push(`u.telegramID = ${parseInt(telegramID)}`);
+        conditions.push(`u.telegramID = ${parseInt(telegramID)}`);
     }
-  
+
     // Если есть условия, добавляем WHERE + объединяем через AND
     let whereClause = '';
     if (conditions.length > 0) {
-      whereClause = `WHERE ${conditions.join(' AND ')}`;
+        whereClause = `WHERE ${conditions.join(' AND ')}`;
     }
-  
+
     // Выполняем «сырой» запрос
     // Обратите внимание: используем prisma.$queryRawUnsafe
     // или формируем «шаблонными строками» с учётом экранирования
@@ -95,42 +95,42 @@ async function getAggregatedUsers({ chatId, telegramID } = {}) {
       ${whereClause}
       GROUP BY u.id
     `);
-  
+
     // Возвращаем массив записей (могут быть 0,1 или несколько)
     return results;
-  }
-  
-  // «Обёртка» для получения всех пользователей:
-  async function getUsers() {
+}
+
+// «Обёртка» для получения всех пользователей:
+async function getUsers() {
     // Без аргументов => нет WHERE => вернутся все пользователи
     return await getAggregatedUsers();
-  }
-  
-  // «Обёртка» для получения одного пользователя по chatId:
-  async function getUserByChatId(chatId) {
+}
+
+// «Обёртка» для получения одного пользователя по chatId:
+async function getUserByChatId(chatId) {
     // Вызываем общий метод с параметром chatId
     const results = await getAggregatedUsers({ chatId });
     // Возвращаем 1-го, если есть
     return results.length ? results[0] : null;
-  }
-  
-  // «Обёртка» для получения одного пользователя по telegramID:
-  async function getUserByTelegramID(telegramID) {
+}
+
+// «Обёртка» для получения одного пользователя по telegramID:
+async function getUserByTelegramID(telegramID) {
     // Вызываем общий метод
     const results = await getAggregatedUsers({ telegramID });
     // Возвращаем 1-го, если есть
     return results.length ? results[0] : null;
-  }
-  
-  
+}
+
+
 
 // Обработка команды /profiletelegramID
 bot.onText(/\/profile(.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const telegramID = match[1]; // Получаем никнейм из команды
-    
+
     userMode[chatId] = 'oneField';
-    
+
 
     // Проверяем, если тренер отправил команду с никнеймом
     if (!telegramID) {
@@ -510,7 +510,7 @@ bot.onText(/\/wishvptcount(.*)/, async (msg, match) => {
         if (msg.chat.id !== chatId) return;
 
         const newValue = msg.text.trim();
-        
+
         // Валидация числа
         if (!/^\d+$/.test(newValue)) {
             bot.sendMessage(chatId, 'Некорректный формат. Введите целое число (например: 5)');
@@ -577,8 +577,8 @@ bot.onText(/\/users/, async (msg) => {
             const group = groups[i];
             const usersInfo = group.map((user) => (
                 `${user.name}\n(⏳ ${user.noneStatusVptCount} | ✅ ${user.acceptedStatusVptCount} | ❌ ${user.rejectedStatusVptCount} / 🎯: ${user.wishVptCount})\nАнкета /profile${user.telegramID}\n@${user.nick}\n`
-              )).join('\n');
-              
+            )).join('\n');
+
 
             // Отправляем сообщение с информацией о части группы
             const part = `${i + 1}/${totalGroups}`;
@@ -621,7 +621,7 @@ bot.onText(/\/start/, async (msg) => {
 
     // Начлао регистрации
     // Сохраняем временные данные о тренере
-    userSteps[chatId] = { step: 0, telegramID, nick};
+    userSteps[chatId] = { step: 0, telegramID, nick };
     userMode[chatId] = 'userEdit';
     bot.sendMessage(chatId, 'Для начала, пожалуйста, поделитесь своим контактом. Нужно нажать кнопку "Поделиться контактом" в клавиатуре бота ниже.', {
         reply_markup: {
@@ -701,34 +701,34 @@ function sendVptListInlineKeyboard(bot, chatId, telegramID) {
 
 
 async function updateVPTRequestStatus(requestId, newStatus) {
-    try {  
-      // Обновляем статус заявки
-      const updatedRequest = await prisma.vPTRequest.update({
-        where: { id: requestId },
-        data: { status: newStatus },
-      });
-  
-      console.log(`Статус заявки ID ${requestId} обновлен на ${newStatus}`);
-      return updatedRequest;
-    } catch (error) {
-      console.error('Ошибка при обновлении статуса заявки:', error);
-    }
-  }
+    try {
+        // Обновляем статус заявки
+        const updatedRequest = await prisma.vPTRequest.update({
+            where: { id: requestId },
+            data: { status: newStatus },
+        });
 
-  async function updateVPTRequestComment(requestId, newComment) {
-    try {  
-      // Обновляем статус заявки
-      const updatedRequest = await prisma.vPTRequest.update({
-        where: { id: requestId },
-        data: { comment: newComment },
-      });
-  
-      console.log(`Комментарий заявки ID ${requestId} обновлен на ${newComment}`);
-      return updatedRequest;
+        console.log(`Статус заявки ID ${requestId} обновлен на ${newStatus}`);
+        return updatedRequest;
     } catch (error) {
-      console.error('Ошибка при обновлении статуса заявки:', error);
+        console.error('Ошибка при обновлении статуса заявки:', error);
     }
-  }
+}
+
+async function updateVPTRequestComment(requestId, newComment) {
+    try {
+        // Обновляем статус заявки
+        const updatedRequest = await prisma.vPTRequest.update({
+            where: { id: requestId },
+            data: { comment: newComment },
+        });
+
+        console.log(`Комментарий заявки ID ${requestId} обновлен на ${newComment}`);
+        return updatedRequest;
+    } catch (error) {
+        console.error('Ошибка при обновлении статуса заявки:', error);
+    }
+}
 
 
 // Обработка выбора должностей
@@ -745,6 +745,90 @@ bot.on('callback_query', async (query) => {
     let queryValue = query.data.split('@')[1];
     let queryId = query.data.split('@')[2];
     // перед @ тема нажатой кнопки, после @ значение нажатой кнопки
+    if (queryTheme === 'vpt_request') {
+        if (queryValue === 'povtorno') {
+            try {
+                // 1. Парсим requestId
+                const requestId = parseInt(queryId, 10);
+
+                // 2. Находим заявку
+                let request = await prisma.vPTRequest.findUnique({
+                    where: { id: requestId },
+                });
+                if (!request) {
+                    bot.sendMessage(chatId, 'Заявка не найдена или уже удалена.');
+                    return;
+                }
+
+                // 3. Дописываем к комментарию отметку о повторе
+                const updatedComment = `${request.comment}\n\n${nowdatetime}\n⚠️ Повторно!`;
+
+                // Обновляем в базе
+                request = await prisma.vPTRequest.update({
+                    where: { id: requestId },
+                    data: { comment: updatedComment },
+                });
+
+                // 4. Ищем владельца заявки (User), чтобы отправить ему
+                const requestOwner = await prisma.user.findUnique({
+                    where: { id: request.userId },
+                });
+                if (!requestOwner || !requestOwner.chatId) {
+                    bot.sendMessage(chatId, 'Владелец заявки не найден или отсутствует chatId.');
+                    return;
+                }
+
+                // 5. Отправляем заявку владельцу
+                await sendSingleVPTRequestMessage(bot, requestOwner.chatId, requestOwner, requestOwner, request);
+
+                // 6. Сообщаем тому, кто нажал «Повторно», что заявка отправлена
+                bot.sendMessage(chatId, `Заявка #${request.id} повторно отправлена владельцу (chatId: ${requestOwner.chatId}).`);
+
+            } catch (err) {
+                console.error('Ошибка при повторной отправке заявки:', err);
+                bot.sendMessage(chatId, 'Произошла ошибка при повторной отправке заявки.');
+            }
+        }
+        else if (queryValue === 'remove') {
+            try {
+                // Проверяем, что текущий пользователь (user) — админ
+                if (user.role != 'админ') {
+                    bot.sendMessage(chatId, 'У вас нет прав на удаление заявок.');
+                    return;
+                }
+
+                // Преобразуем ID заявки
+                const requestId = parseInt(queryId, 10);
+
+                // Ищем заявку в БД
+                const existingRequest = await prisma.vPTRequest.findUnique({
+                    where: { id: requestId },
+                });
+
+                if (!existingRequest) {
+                    bot.sendMessage(chatId, `Заявка #${requestId} не найдена или уже удалена.`);
+                    return;
+                }
+
+                // Удаляем заявку
+                await prisma.vPTRequest.delete({
+                    where: { id: requestId },
+                });
+
+                // Уведомляем в чат, что заявка удалена
+                bot.sendMessage(chatId, `Заявка #${requestId} (${existingRequest.goal}) успешно удалена администратором.`);
+
+                // При желании можно уведомить общий чат или журнал
+                // bot.sendMessage(process.env.GROUP_ID, `Админ ${user.name} удалил заявку #${requestId} (${existingRequest.goal}).`);
+
+            } catch (error) {
+                console.error('Ошибка при удалении заявки:', error);
+                bot.sendMessage(chatId, 'Произошла ошибка при удалении заявки.');
+            }
+        }
+    }
+
+
     if (queryTheme === 'vpt_status') {
         console.log(queryId);
         if (queryValue === 'accepted') {
@@ -757,7 +841,7 @@ bot.on('callback_query', async (query) => {
         }
         if (queryValue === 'rejected') {
             bot.sendMessage(chatId, 'Кажется вы промахнулись... \nВы всё ещё можете принять заявку, нажав на соответствующую кнопку ✅ выше.\n\nЕсли желаете отклонить заявку -- опишите причину, почему вы отказываетесь 🙂');
-        
+
             // Ожидаем ввод причины отказа
             const rejectionHandler = async (msg) => {
                 if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других пользователей
@@ -768,14 +852,14 @@ bot.on('callback_query', async (query) => {
 
                 // Удаляем обработчик после получения причины
                 bot.removeListener('message', rejectionHandler);
-                
+
                 bot.sendPhoto(chatId, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
                 bot.sendPhoto(process.env.GROUP_ID, updatedVptRequest.photo, { caption: updatedVptRequest.comment });
             }
 
             // Добавляем обработчик для получения причины отказа
             bot.on('message', rejectionHandler);
-        
+
         }
     }
     if (queryTheme === 'vpt_list') {
@@ -813,7 +897,7 @@ bot.on('callback_query', async (query) => {
                         vpt_list: vpt_list, // Обновляем поле `vpt_list`
                     },
                 })
-                    .then(async () => {                        
+                    .then(async () => {
                         let modifiedUser = await getUserByTelegramID(queryId);
 
                         bot.sendMessage(chatId, `Проводимые ВПТ тренера ${modifiedUser.name} успешно обновлены на "${vpt_list}".\nПросмотр: /profile${parseInt(queryId)}`);
@@ -823,10 +907,10 @@ bot.on('callback_query', async (query) => {
                         console.error('Ошибка при обновлении проводимых ВПТ:', error);
                         bot.sendMessage(chatId, 'Произошла ошибка при обновлении проводимых ВПТ.');
                     });
-                    
-                delete userMode[chatId]; 
+
+                delete userMode[chatId];
                 delete userSteps[chatId];
-            } 
+            }
             if (userMode[chatId] === 'userEdit') {
                 const { name, position, selections, phoneNumber, telegramID, nick, birthday } = userSteps[chatId];
                 const vpt_list = `${selections.map((sel) => `${sel}`).join(', ')}`;
@@ -837,7 +921,7 @@ bot.on('callback_query', async (query) => {
 
                 try {
                     await prisma.user.upsert({
-                        where: { telegramID:queryId },
+                        where: { telegramID: queryId },
                         update: {
                             name,
                             phoneNumber,
@@ -883,10 +967,10 @@ function generateUserInfo(user) {
         `${user.name} ${"@" + user.nick}\n` + `Изменить /name${parseInt(user.telegramID)}\n\n` +
         `Заявки за этот месяц:\n` +
         `⏳ ${user.noneStatusVptCount} | неразобранные: /vpt_none${parseInt(user.telegramID)}\n` +
-        `✅ ${user.acceptedStatusVptCount} | принятые: /vpt_accepted${parseInt(user.telegramID)} \n` + 
-        `❌ ${user.rejectedStatusVptCount} | отклоненные: /vpt_rejected${parseInt(user.telegramID)} \n` + 
+        `✅ ${user.acceptedStatusVptCount} | принятые: /vpt_accepted${parseInt(user.telegramID)} \n` +
+        `❌ ${user.rejectedStatusVptCount} | отклоненные: /vpt_rejected${parseInt(user.telegramID)} \n` +
         `🎯 ${user.wishVptCount} | запланировано ВПТ на месяц\nИзменить /wishvptcount${parseInt(user.telegramID)}\n\n` +
-        
+
         `- Телефон: \n${user.phoneNumber}\n\n` +
         `- Должность: ${user.position}\nИзменить /position${parseInt(user.telegramID)}\n\n` +
         `- Роль: ${user.role}\nИзменить /role${parseInt(user.telegramID)}\n\n` +
@@ -895,37 +979,141 @@ function generateUserInfo(user) {
         `- Фото: ${user.photo ? 'есть' : 'нет'}\nИзменить /photo${parseInt(user.telegramID)}\n-------------------------\n\n`;
 }
 
+
+/**
+ * Отправляет одно сообщение с заявкой (request) в указанный чат (chatId).
+ * - Формирует текст заявки (captionText)
+ * - Формирует inline-кнопки (row1, row2)
+ * - Проверяет роль текущего пользователя (currentUser)
+ * - Если есть фото, вызывает sendPhotoWithRetry (или bot.sendPhoto)
+ * - Если нет фото, вызывает bot.sendMessage
+ *
+ * @param {TelegramBot} bot - Инстанс TelegramBot
+ * @param {Number} chatId - Куда отправлять сообщение
+ * @param {Object} currentUser - Текущий пользователь (свойства: id, role, ...)
+ * @param {Object} targetUser - Владелец заявки (или тренер, чьё это объявление), поля: name, nick
+ * @param {Object} request - Объект заявки (VPTRequest). Поля: id, goal, photo, comment, ...
+ * @param {Function} sendPhotoWithRetry - (необязательно) функция для отправки фото с повтором при 429
+ * @returns {Promise<void>}
+ */
+async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser, request, sendPhotoWithRetry = null) {
+    // Шаг 1: Собираем текст сообщения
+    const createdDateStr = request.createdAt.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+
+    const statusText =
+        request.status === 'none'
+            ? 'неразобрано'
+            : request.status === 'accepted'
+                ? 'принято'
+                : 'отклонено';
+
+    const captionText =
+        `Заявка ${request.goal} #${request.id}\n` +
+        `Тренер: ${targetUser.name} (@${targetUser.nick})\n\n` +
+        `Дата создания: ${createdDateStr}\n` +
+        `📞: ${request.phoneNumber}\n` +
+        `Комментарий:\n${request.comment ?? '—'}\n\n` +
+        `Текущий статус: ${statusText}`;
+
+    // Шаг 2: Формируем список кнопок
+    const row1 = [
+        {
+            text: '✅ Беру',
+            callback_data: `vpt_status@accepted@${request.id}`
+        },
+        {
+            text: '❌ Не беру',
+            callback_data: `vpt_status@rejected@${request.id}`
+        }
+    ];
+    const row2 = [
+        {
+            text: '⚠️ Повторно',
+            callback_data: `vpt_request@povtorno@${request.id}`
+        },
+        {
+            text: '🗑 Удалить',
+            callback_data: `vpt_request@remove@${request.id}`
+        }
+    ];
+
+    // Шаг 3: В зависимости от текущего пользователя (currentUser)
+    // формируем окончательную inline-клавиатуру
+    let inline_keyboard = [];
+
+    // row1 — только если currentUser.id == request.userId (владелец заявки)
+    if (currentUser.id == request.userId) {
+        inline_keyboard.push(row1);
+    }
+
+    // row2 — только если текущий пользователь админ
+    if (currentUser.role == 'админ') {
+        inline_keyboard.push(row2);
+    }
+
+    // Шаг 4: Отправляем сообщение
+    try {
+        if (request.photo) {
+            // Если есть фото и функция sendPhotoWithRetry передана —
+            // используем её, иначе стандартное bot.sendPhoto
+            if (typeof sendPhotoWithRetry === 'function') {
+                await sendPhotoWithRetry(chatId, request.photo, captionText, {
+                    reply_markup: { inline_keyboard }
+                });
+            } else {
+                // Стандартная отправка
+                await bot.sendPhoto(chatId, request.photo, {
+                    caption: captionText,
+                    reply_markup: { inline_keyboard }
+                });
+            }
+        } else {
+            // Если нет фото, просто sendMessage
+            await bot.sendMessage(chatId, captionText, {
+                reply_markup: { inline_keyboard }
+            });
+        }
+    } catch (error) {
+        console.error('Ошибка при отправке заявки:', error);
+        // Можно дополнительно отправлять уведомление об ошибке
+        // bot.sendMessage(chatId, 'Ошибка при отправке сообщения с заявкой.');
+    }
+}
+
+
 // Регулярка отлавливает три варианта команд:
 // /vpt_none12345, /vpt_accepted12345, /vpt_rejected12345
 bot.onText(/\/vpt_(none|accepted|rejected)(\d+)/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const statusFromCommand = match[1];       // none|accepted|rejected
-    const telegramID = match[2];             // Например 5530746845
+    const statusFromCommand = match[1];    // none|accepted|rejected
+    const telegramID = match[2];          // например 5530746845
 
-    // Получаем текущего пользователя (кто вызывает команду)
+    // Получаем пользователя (кто вызывает команду)
     const currentUser = await getUserByChatId(chatId);
     if (!currentUser) {
         bot.sendMessage(chatId, 'Вы не зарегистрированы или отсутствуете в базе. Используйте /start');
         return;
     }
 
-    // Проверяем, есть ли вообще такой тренер с указанным telegramID
+    // Ищем тренера, у которого заявки
     const targetUser = await getUserByTelegramID(telegramID);
     if (!targetUser) {
         bot.sendMessage(chatId, `Пользователь c telegramID ${telegramID} не найден.`);
         return;
     }
 
-    // Выполняем поиск заявок по userId и нужному статусу
+    // Получаем заявки
     let vptRequests;
     try {
-        // Берём заявки конкретного пользователя, у которых status = statusFromCommand
         vptRequests = await prisma.vPTRequest.findMany({
             where: {
                 userId: targetUser.id,
                 status: statusFromCommand
             },
-            orderBy: { createdAt: 'desc' } // чтобы самые свежие были первыми
+            orderBy: { createdAt: 'desc' }
         });
     } catch (error) {
         console.error('Ошибка при получении заявок:', error);
@@ -938,114 +1126,37 @@ bot.onText(/\/vpt_(none|accepted|rejected)(\d+)/, async (msg, match) => {
         return;
     }
 
-    // Функция отправки фото с экспоненциальной задержкой при ошибке 429
+    // Функция с экспоненциальной задержкой при 429
     async function sendPhotoWithRetry(chatId, photoFileIdOrUrl, caption, extra, maxAttempts = 5) {
         let attempt = 0;
         while (attempt < maxAttempts) {
             try {
-                // Пытаемся отправить
-                return await bot.sendPhoto(chatId, photoFileIdOrUrl, {
-                    caption,
-                    ...extra
-                });
+                return await bot.sendPhoto(chatId, photoFileIdOrUrl, { caption, ...extra });
             } catch (err) {
-                // Проверяем, не "Too Many Requests" ли
                 if (err.response && err.response.statusCode === 429) {
-                    const retryAfter = err.response.body.parameters.retry_after || (2 ** attempt);
-                    console.warn(`Превышен лимит сообщений. Повтор через ${retryAfter} секунд (попытка ${attempt + 1} из ${maxAttempts})`);
+                    const retryAfter = err.response.body.parameters?.retry_after ?? (2 ** attempt);
+                    console.warn(`Превышен лимит: повтор через ${retryAfter} секунд (попытка ${attempt + 1}/${maxAttempts})`);
                     await new Promise(res => setTimeout(res, (retryAfter + 1) * 1000));
                     attempt++;
                 } else {
-                    // Какая-то другая ошибка
                     console.error('Ошибка при отправке фото:', err);
-                    // Не пытаемся дальше, выходим
-                    break;
+                    break; // прерываем
                 }
             }
         }
         // Если все попытки исчерпаны
-        bot.sendMessage(chatId, 'Не удалось отправить сообщение из-за превышения лимита или ошибки сети.');
+        bot.sendMessage(chatId, 'Не удалось отправить фото из-за лимитов или ошибок сети.');
     }
 
-    // Перебираем заявки и отправляем по одной
+    // Отправляем заявки по одной
     for (const request of vptRequests) {
+        await sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser, request, sendPhotoWithRetry);
 
-        // Собираем текст сообщения
-        const createdDateStr = request.createdAt.toLocaleString('ru-RU', {
-            day: '2-digit', month: '2-digit', year: 'numeric',
-            hour: '2-digit', minute: '2-digit'
-        });
-
-        const captionText = 
-            `Заявка ${request.goal} #${request.id}\n` +
-            `Тренер: ${targetUser.name} (@${targetUser.nick})\n\n` +
-            `Дата создания: ${createdDateStr}\n` +
-            `📞: ${request.phoneNumber}\n` +
-            `Комментарий:\n${request.comment ?? '—'}\n\n` +
-            `Текущий статус: ${request.status=='none'?'неразобрано':request.status=='accepted'?'принято':'отклонено'}`;
-
-        // Формируем список кнопок
-        // Всегда: Беру, Не беру
-        const row1 = [
-            {
-                text: '✅ Беру',
-                callback_data: `vpt_status@accepted@${request.id}`
-            },
-            {
-                text: '❌ Не беру',
-                callback_data: `vpt_status@rejected@${request.id}`
-            }
-        ];
-        // Для админа добавим второй ряд
-        const row2 = [
-            {
-                text: '⚠️ Повторно',
-                callback_data: `vpt_request@povtorno@${request.id}`
-            },
-            {
-                text: '🗑 Удалить',
-                callback_data: `vpt_request@remove@${request.id}`
-            }
-        ];
-
-        let inline_keyboard = [];
-
-        // 1) row1 только для владельца заявки (если текущий пользователь == владелец)
-        if (currentUser.id == request.userId) {
-            inline_keyboard.push(row1);
-        }
-
-        // 2) row2 только для админа (если role == 'админ')
-        if (currentUser.role == 'админ') {
-            inline_keyboard.push(row2);
-        }
-
-        // Пытаемся отправить сообщение с фото
-        try {
-            if (request.photo) {
-                // Есть фото
-                await sendPhotoWithRetry(chatId, request.photo, captionText, {
-                    reply_markup: {
-                        inline_keyboard
-                    }
-                });
-            } else {
-                // Фото нет, отправляем просто текст
-                // (тоже оборачиваем в try-catch на всякий случай, но 429
-                //  на sendMessage возникает реже)
-                await bot.sendMessage(chatId, captionText, {
-                    reply_markup: { inline_keyboard }
-                });
-            }
-        } catch (error) {
-            console.error('Ошибка при отправке заявки:', error);
-            // Если не получилось отправить одну — логируем и идём дальше к следующей
-        }
-
-        // Небольшая задержка между сообщениями (можно дополнительно "смягчить" анти-спам)
+        // Небольшая пауза между сообщениями, чтобы Telegram не ругался
         await new Promise(r => setTimeout(r, 500));
     }
 });
+
 
 
 
