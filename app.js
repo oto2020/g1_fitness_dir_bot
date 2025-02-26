@@ -576,7 +576,7 @@ bot.onText(/\/users/, async (msg) => {
         for (let i = 0; i < totalGroups; i++) {
             const group = groups[i];
             const usersInfo = group.map((user) => (
-                `${user.name} (⏳ ${user.noneStatusVptCount} | ✅ ${user.acceptedStatusVptCount} | ❌ ${user.rejectedStatusVptCount} / 🎯: ${user.wishVptCount})\n@${user.nick}\nАнкета /profile${user.telegramID}\n`
+                `${user.name}\n(⏳ ${user.noneStatusVptCount} | ✅ ${user.acceptedStatusVptCount} | ❌ ${user.rejectedStatusVptCount} / 🎯: ${user.wishVptCount})\nАнкета /profile${user.telegramID}\n@${user.nick}\n`
               )).join('\n');
               
 
@@ -878,7 +878,7 @@ function generateUserInfo(user) {
         `Заявки за этот месяц:\n` +
         `⏳ ${user.noneStatusVptCount} | неразобранные: /vpt_none${parseInt(user.telegramID)}\n` +
         `✅ ${user.acceptedStatusVptCount} | принятые: /vpt_accepted${parseInt(user.telegramID)} \n` + 
-        `❌ ${user.rejectedStatusVptCount} | отклоненные: /vpt_rejected${parseInt(user.telegramID)} \n` +
+        `❌ ${user.rejectedStatusVptCount} | отклоненные: /vpt_rejected${parseInt(user.telegramID)} \n` + 
         `🎯 ${user.wishVptCount} | запланировано ВПТ на месяц\nИзменить /wishvptcount${parseInt(user.telegramID)}\n\n` +
         
         `- Телефон: \n${user.phoneNumber}\n\n` +
