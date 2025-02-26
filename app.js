@@ -746,6 +746,13 @@ bot.on('callback_query', async (query) => {
     let queryId = query.data.split('@')[2];
     // перед @ тема нажатой кнопки, после @ значение нажатой кнопки
     if (queryTheme === 'vpt_request') {
+        // Внутри любого хендлера, когда нужно проверить заявку:
+        const request = await checkRequestExistence(bot, chatId, queryId);
+        // Если функция вернула false — значит заявки нет или произошла ошибка
+        if (!request) {
+            return; // «тормозим» дальнейшее выполнение кода
+        }
+
         if (queryValue === 'povtorno') {
             try {
                 // 1. Парсим requestId
@@ -831,6 +838,13 @@ bot.on('callback_query', async (query) => {
 
     if (queryTheme === 'vpt_status') {
         console.log(queryId);
+        // Внутри любого хендлера, когда нужно проверить заявку:
+        const request = await checkRequestExistence(bot, chatId, queryId);
+        // Если функция вернула false — значит заявки нет или произошла ошибка
+        if (!request) {
+            return false; // «тормозим» дальнейшее выполнение кода
+        }
+
         if (queryValue === 'accepted') {
             let updatedVptRequest = await updateVPTRequestStatus(queryId, 'accepted');
             console.log(updatedVptRequest);
@@ -1150,6 +1164,13 @@ bot.onText(/\/vpt_(none|accepted|rejected)(\d+)/, async (msg, match) => {
 
     // Отправляем заявки по одной
     for (const request of vptRequests) {
+        // Внутри любого хендлера, когда нужно проверить заявку:
+        const req = await checkRequestExistence(bot, chatId, request.id);
+        // Если функция вернула false — значит заявки нет или произошла ошибка
+        if (!req) {
+            continue; // «тормозим» дальнейшее выполнение кода
+        }
+
         await sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser, request, sendPhotoWithRetry);
 
         // Небольшая пауза между сообщениями, чтобы Telegram не ругался
@@ -1157,6 +1178,26 @@ bot.onText(/\/vpt_(none|accepted|rejected)(\d+)/, async (msg, match) => {
     }
 });
 
+async function checkRequestExistence(bot, chatId, requestId) {
+    try {
+        const existingRequest = await prisma.vPTRequest.findUnique({
+            where: { id: parseInt(requestId) },
+        });
+
+        if (!existingRequest) {
+            // Сообщаем пользователю об ошибке
+            bot.sendMessage(chatId, `Заявка #${requestId} не найдена или уже удалена.`);
+            return false; // Сигнализируем, что заявки нет
+        }
+
+        // Если заявка существует — возвращаем сам объект
+        return existingRequest;
+    } catch (error) {
+        console.error('Ошибка при проверке заявки:', error);
+        bot.sendMessage(chatId, `Произошла ошибка при проверке заявки #${requestId}.`);
+        return false;
+    }
+}
 
 
 
