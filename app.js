@@ -1003,18 +1003,18 @@ bot.on('callback_query', async (query) => {
 function generateUserInfo(user) {
     return `Анкета: /profile${parseInt(user.telegramID)}\n\n` +
         `${user.name} ${"@" + user.nick}\n` + `Изменить /name${parseInt(user.telegramID)}\n\n` +
-        `Заявки за этот месяц:\n` +
-        `⏳ ${user.noneStatusVptCount} | неразобранные: /vpt_none${parseInt(user.telegramID)}\n` +
-        `✅ ${user.acceptedStatusVptCount} | принятые: /vpt_accepted${parseInt(user.telegramID)} \n` +
-        `❌ ${user.rejectedStatusVptCount} | отклоненные: /vpt_rejected${parseInt(user.telegramID)} \n` +
-        `🎯 ${user.wishVptCount} | запланировано ВПТ на месяц\nИзменить /wishvptcount${parseInt(user.telegramID)}\n\n` +
-
-        `- Телефон: \n${user.phoneNumber}\n\n` +
-        `- Должность: ${user.position}\nИзменить /position${parseInt(user.telegramID)}\n\n` +
-        `- Роль: ${user.role}\nИзменить /role${parseInt(user.telegramID)}\n\n` +
-        `- Проводимые ВПТ: ${user.vpt_list}\nИзменить /vpt_list${parseInt(user.telegramID)}\n\n` +
         `- Дата рождения: ${user.birthday ? user.birthday.toLocaleDateString('ru-RU') : 'не указан'}\nИзменить /birthday${parseInt(user.telegramID)}\n\n` +
-        `- Фото: ${user.photo ? 'есть' : 'нет'}\nИзменить /photo${parseInt(user.telegramID)}\n-------------------------\n\n`;
+        `- Телефон: \n${user.phoneNumber}\n\n` +
+        `- Должность: ${user.position}\nИзменить: /position${parseInt(user.telegramID)}\n\n` +
+        // `- Роль: ${user.role}\nИзменить /role${parseInt(user.telegramID)}\n\n` +
+        `- Подразделение: ${user.vpt_list}\nИзменить: /vpt_list${parseInt(user.telegramID)}\n\n` +
+        
+        `Заявки за этот месяц:\n` +
+        `⏳ ${user.noneStatusVptCount} | неразобранные\nпросмотр: /vpt_none${parseInt(user.telegramID)}\n\n` +
+        `✅ ${user.acceptedStatusVptCount} | принятые\nпросмотр: /vpt_accepted${parseInt(user.telegramID)}\n\n` +
+        `❌ ${user.rejectedStatusVptCount} | отклоненные\nпросмотр: /vpt_rejected${parseInt(user.telegramID)}\n\n` +
+        `🎯 ${user.wishVptCount} | запланировано ВПТ на месяц\nИзменить: /wishvptcount${parseInt(user.telegramID)}\n\n` +
+        `- Фото: ${user.photo ? 'есть' : 'нет'}\Загрузить: /photo${parseInt(user.telegramID)}\n-------------------------\n\n`;
 }
 
 
