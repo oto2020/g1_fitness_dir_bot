@@ -1010,8 +1010,8 @@ function generateUserInfo(user) {
         `- Подразделение: ${user.vpt_list}\nИзменить: /vpt_list${parseInt(user.telegramID)}\n\n` +
         
         `ЗАЯВКИ ЗА ЭТОТ МЕСЯЦ:\n` +
-        `⏳ ${user.noneStatusVptCount} | неразобранные\nпросмотр: /vpt_none${parseInt(user.telegramID)}\n\n` +
-        `✅ ${user.acceptedStatusVptCount} | принятые\nпросмотр: /vpt_accepted${parseInt(user.telegramID)}\n\n` +
+        `⏳ ${user.noneStatusVptCount} | неразобранные\nпросмотр: /vpt_none${parseInt(user.telegramID)}\n` +
+        `✅ ${user.acceptedStatusVptCount} | принятые\nпросмотр: /vpt_accepted${parseInt(user.telegramID)}\n` +
         `❌ ${user.rejectedStatusVptCount} | отклоненные\nпросмотр: /vpt_rejected${parseInt(user.telegramID)}\n\n` +
         `🎯 ${user.wishVptCount} | запланировано ВПТ на месяц\nИзменить: /wishvptcount${parseInt(user.telegramID)}\n\n` +
         `- Фото: ${user.photo ? 'есть' : 'нет'}\nЗагрузить: /photo${parseInt(user.telegramID)}\n-------------------------\n\n`;
