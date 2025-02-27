@@ -1009,7 +1009,7 @@ function generateUserInfo(user) {
         // `- Роль: ${user.role}\nИзменить /role${parseInt(user.telegramID)}\n\n` +
         `- Подразделение: ${user.vpt_list}\nИзменить: /vpt_list${parseInt(user.telegramID)}\n\n` +
         
-        `Заявки за этот месяц:\n` +
+        `ЗАЯВКИ ЗА ЭТОТ МЕСЯЦ:\n` +
         `⏳ ${user.noneStatusVptCount} | неразобранные\nпросмотр: /vpt_none${parseInt(user.telegramID)}\n\n` +
         `✅ ${user.acceptedStatusVptCount} | принятые\nпросмотр: /vpt_accepted${parseInt(user.telegramID)}\n\n` +
         `❌ ${user.rejectedStatusVptCount} | отклоненные\nпросмотр: /vpt_rejected${parseInt(user.telegramID)}\n\n` +
