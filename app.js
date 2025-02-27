@@ -734,7 +734,7 @@ async function updateVPTRequestComment(requestId, newComment) {
 // Обработка выбора должностей
 bot.on('callback_query', async (query) => {
     let nowdatetime = new Date().toLocaleString('ru-RU', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
+        timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
     });
 
@@ -1037,7 +1037,7 @@ function generateUserInfo(user) {
 async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser, request, sendPhotoWithRetry = null) {
     // Шаг 1: Собираем текст сообщения
     const nowdatetime = request.createdAt.toLocaleString('ru-RU', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
+        timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
     });
 
