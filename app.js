@@ -757,7 +757,7 @@ bot.on('callback_query', async (query) => {
             try {
                 // 1. Парсим requestId
                 const requestId = parseInt(queryId, 10);
-        
+
                 // 2. Находим заявку
                 let request = await prisma.vPTRequest.findUnique({
                     where: { id: requestId },
@@ -766,16 +766,16 @@ bot.on('callback_query', async (query) => {
                     bot.sendMessage(chatId, 'Заявка не найдена или уже удалена.');
                     return;
                 }
-        
+
                 // 3. Дописываем к комментарию отметку о повторе
                 const updatedComment = `${request.comment}\n\n${nowdatetime}\n⚠️ Повторно!`;
-        
+
                 // Обновляем в базе
                 request = await prisma.vPTRequest.update({
                     where: { id: requestId },
                     data: { comment: updatedComment },
                 });
-        
+
                 // 4. Ищем владельца заявки (User), чтобы отправить ему
                 const requestOwner = await prisma.user.findUnique({
                     where: { id: request.userId },
@@ -784,10 +784,10 @@ bot.on('callback_query', async (query) => {
                     bot.sendMessage(chatId, 'Владелец заявки не найден или отсутствует chatId.');
                     return;
                 }
-        
+
                 // 5. Отправляем заявку владельцу
                 await sendSingleVPTRequestMessage(bot, requestOwner.chatId, requestOwner, requestOwner, request);
-        
+
                 // 5.b. Дублируем сообщение в группу без кнопок // <-- новое
                 const statusText =
                     request.status === 'none'
@@ -795,7 +795,7 @@ bot.on('callback_query', async (query) => {
                         : request.status === 'accepted'
                             ? 'принято'
                             : 'отклонено';
-        
+
                 // Составим текст для группы (произвольно, как вам нужно)
                 const groupCaption =
                     `Повторная заявка #${request.id}\n` +
@@ -804,13 +804,13 @@ bot.on('callback_query', async (query) => {
                     `Тренер: ${requestOwner.name} (@${requestOwner.nick})\n\n` +
                     `Статус: ${statusText}\n\n` +
                     `Комментарий:\n${request.comment ?? '—'}`;
-        
+
                 if (request.photo) {
                     await bot.sendPhoto(process.env.GROUP_ID, request.photo, { caption: groupCaption });
                 } else {
                     await bot.sendMessage(process.env.GROUP_ID, groupCaption);
                 }
-        
+
                 // 6. Сообщаем тому, кто нажал «Повторно», что заявка отправлена
                 bot.sendMessage(chatId, `Заявка #${request.id} повторно отправлена владельцу (chatId: ${requestOwner.chatId}) и продублирована в группу.`);
             } catch (err) {
@@ -818,7 +818,7 @@ bot.on('callback_query', async (query) => {
                 bot.sendMessage(chatId, 'Произошла ошибка при повторной отправке заявки.');
             }
         }
-        
+
         else if (queryValue === 'remove') {
             try {
                 // Проверяем, что текущий пользователь (user) — админ
@@ -1008,7 +1008,7 @@ function generateUserInfo(user) {
         `- Должность: ${user.position}\nИзменить: /position${parseInt(user.telegramID)}\n\n` +
         // `- Роль: ${user.role}\nИзменить /role${parseInt(user.telegramID)}\n\n` +
         `- Подразделение: ${user.vpt_list}\nИзменить: /vpt_list${parseInt(user.telegramID)}\n\n` +
-        
+
         `ЗАЯВКИ ЗА ЭТОТ МЕСЯЦ:\n` +
         `⏳ ${user.noneStatusVptCount} | неразобранные\nпросмотр: /vpt_none${parseInt(user.telegramID)}\n` +
         `✅ ${user.acceptedStatusVptCount} | принятые\nпросмотр: /vpt_accepted${parseInt(user.telegramID)}\n` +
@@ -1223,6 +1223,61 @@ async function checkRequestExistence(bot, chatId, requestId) {
     }
 }
 
+app.post('/vptrequests', async (req, res) => {
+    try {
+        const { year, month } = req.body;
+        const parsedYear = parseInt(year, 10);
+        const parsedMonth = parseInt(month, 10);
+
+        // Простая проверка корректности year и month
+        if (isNaN(parsedYear) || isNaN(parsedMonth)) {
+            return res.status(400).json({ error: 'Неверно указаны year или month' });
+        }
+
+        // Формируем временные границы для поиска
+        const startDate = new Date(parsedYear, parsedMonth - 1, 1); // 1 число запрошенного месяца
+        const endDate = new Date(parsedYear, parsedMonth, 1);       // 1 число следующего месяца (не включая)
+
+        // Находим заявки за указанный период
+        const requests = await prisma.vPTRequest.findMany({
+            where: {
+                createdAt: {
+                    gte: startDate,
+                    lt: endDate,
+                },
+            },
+            select: {
+                createdAt: true,
+                goal: true,
+                phoneNumber: true,
+                comment: true,
+                status: true,
+                user: {
+                    select: {
+                        name: true
+                    }
+                }
+            }
+        });
+
+        // Формируем итоговый массив для ответа
+        const data = requests.map(r => ({
+            createdAt: r.createdAt,
+            goal: r.goal,
+            name: r.user?.name ?? null, // user может быть null, если удалён/не найден
+            phoneNumber: r.phoneNumber,
+            comment: r.comment,
+            status: r.status,
+        }));
+
+        // Отправляем массив заявок
+        res.json(data);
+
+    } catch (error) {
+        console.error('Ошибка при получении VPTRequest:', error);
+        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    }
+});
 
 
 // Стартуем сервер Express
