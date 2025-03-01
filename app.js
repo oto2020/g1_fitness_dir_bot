@@ -886,7 +886,7 @@ bot.on('callback_query', async (query) => {
 
                 const rejectionReason = msg.text.trim(); // Получаем текст отказа
                 let updatedVptRequest = await updateVPTRequestStatus(queryId, 'rejected');
-                updatedVptRequest = await updateVPTRequestComment(queryId, `${updatedVptRequest.comment}\n\n${nowdatetime}\n❌ Причина отказа: \n"${rejectionReason}"`);
+                updatedVptRequest = await updateVPTRequestComment(queryId, `${updatedVptRequest.comment}\n\n${nowdatetime}\n@Nadya28_97\n❌ Причина отказа: \n"${rejectionReason}"`);
 
                 // Удаляем обработчик после получения причины
                 bot.removeListener('message', rejectionHandler);
