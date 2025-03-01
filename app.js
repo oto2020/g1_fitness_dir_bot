@@ -556,16 +556,17 @@ bot.onText(/\/users/, async (msg) => {
     }
 
     let users = await getUsers();
-    users = users.filter(user => user.telegramID);// оставляем только тех, у кого есть telegramID
+    users = users.filter(user => user.telegramID)
+    .sort((a, b) => a.name.localeCompare(b.name));// оставляем только тех, у кого есть telegramID и сортируем
     if (users.length === 0) {
         bot.sendMessage(chatId, 'Нет зарегистрированных тренеров.');
         return;
     }
 
-    // Разбиваем список тренеров на группы по 15
+    // Разбиваем список тренеров на группы по 30
     const usersInGroups = [];
     while (users.length > 0) {
-        usersInGroups.push(users.splice(0, 15));
+        usersInGroups.push(users.splice(0, 30));
     }
 
 
