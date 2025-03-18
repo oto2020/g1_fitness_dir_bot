@@ -22,22 +22,11 @@ const prisma = new PrismaClient();
 // Инициализация Telegram Bot
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
-// Функция для преобразования BigInt в строку
-const serializeBigInt = (obj) => {
-    return JSON.parse(JSON.stringify(obj, (key, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-    ));
-};
-// Эндпоинт для получения всех пользователей
-app.get('/fitdirusers', async (req, res) => {
-    try {
-        const users = await prisma.user.findMany();
-        res.json(serializeBigInt(users));
-    } catch (error) {
-        console.error('Ошибка при получении пользователей:', error);
-        res.status(500).json({ error: 'Не удалось получить пользователей' });
-    }
-});
+// Временное хранилище для шагов регистрации
+const userSteps = {};
+const userMode = []
+
+/////// КОМАНДЫ БОТА ////////
 
 // Установка команд бота в меню
 bot.setMyCommands([
@@ -45,84 +34,6 @@ bot.setMyCommands([
     // { command: '/user_edit', description: 'Изменить информацию о себе' },
     { command: '/users', description: 'Список всех тренеров' }
 ]);
-
-// Временное хранилище для шагов регистрации
-const userSteps = {};
-const userMode = []
-
-// Один общий метод
-async function getAggregatedUsers({ chatId, telegramID } = {}) {
-    // Формируем WHERE-условия на лету
-    let conditions = [];
-
-    if (chatId) {
-        // chatId - тип number, можно обернуть в parseInt
-        conditions.push(`u.chatId = ${parseInt(chatId)}`);
-    }
-
-    if (telegramID) {
-        conditions.push(`u.telegramID = ${parseInt(telegramID)}`);
-    }
-
-    // Если есть условия, добавляем WHERE + объединяем через AND
-    let whereClause = '';
-    if (conditions.length > 0) {
-        whereClause = `WHERE ${conditions.join(' AND ')}`;
-    }
-
-    // Выполняем «сырой» запрос
-    // Обратите внимание: используем prisma.$queryRawUnsafe
-    // или формируем «шаблонными строками» с учётом экранирования
-    const results = await prisma.$queryRawUnsafe(`
-      SELECT
-        u.*,
-        COUNT(v.id) AS factVptCount,
-        SUM(CASE WHEN v.status = 'accepted' THEN 1 ELSE 0 END) AS acceptedStatusVptCount,
-        SUM(CASE WHEN v.status = 'rejected' THEN 1 ELSE 0 END) AS rejectedStatusVptCount,
-        SUM(
-          CASE 
-            WHEN v.status <> 'accepted'
-              AND v.status <> 'rejected'
-            THEN 1
-            ELSE 0
-          END
-        ) AS noneStatusVptCount
-      FROM User u
-      LEFT JOIN VPTRequest v
-        ON u.id = v.userId
-        AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
-        AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
-      ${whereClause}
-      GROUP BY u.id
-    `);
-
-    // Возвращаем массив записей (могут быть 0,1 или несколько)
-    return results;
-}
-
-// «Обёртка» для получения всех пользователей:
-async function getUsers() {
-    // Без аргументов => нет WHERE => вернутся все пользователи
-    return await getAggregatedUsers();
-}
-
-// «Обёртка» для получения одного пользователя по chatId:
-async function getUserByChatId(chatId) {
-    // Вызываем общий метод с параметром chatId
-    const results = await getAggregatedUsers({ chatId });
-    // Возвращаем 1-го, если есть
-    return results.length ? results[0] : null;
-}
-
-// «Обёртка» для получения одного пользователя по telegramID:
-async function getUserByTelegramID(telegramID) {
-    // Вызываем общий метод
-    const results = await getAggregatedUsers({ telegramID });
-    // Возвращаем 1-го, если есть
-    return results.length ? results[0] : null;
-}
-
-
 
 // Обработка команды /profiletelegramID
 bot.onText(/\/profile(.+)/, async (msg, match) => {
@@ -283,7 +194,6 @@ bot.onText(/\/role(.*)/, async (msg, match) => {
     // Добавляем обработчик для получения новой роли
     bot.on('message', roleHandler);
 });
-
 
 bot.onText(/\/position(.*)/, async (msg, match) => {
     const chatId = msg.chat.id;
@@ -650,7 +560,7 @@ bot.on('contact', async (msg) => {
     }
 });
 
-// Обработка ввода должности
+// Обработка ввода текста
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
 
@@ -687,52 +597,7 @@ bot.on('message', async (msg) => {
     }
 });
 
-function sendVptListInlineKeyboard(bot, chatId, telegramID) {
-    bot.sendMessage(chatId, 'Если вы тренер, выберите подразделения, в которых работаете и планируете проводить ВПТ.\nЕсли вы не тренер -- просто нажмите "Завершить выбор":', {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: 'ТЗ', callback_data: `vpt_list@tz@${telegramID}` }],
-                [{ text: 'ГП', callback_data: `vpt_list@gp@${telegramID}` }],
-                [{ text: 'Аква', callback_data: `vpt_list@aq@${telegramID}` }],
-                [{ text: 'Завершить выбор', callback_data: `vpt_list@done@${telegramID}` }],
-            ],
-        },
-    });
-}
-
-
-async function updateVPTRequestStatus(requestId, newStatus) {
-    try {
-        // Обновляем статус заявки
-        const updatedRequest = await prisma.vPTRequest.update({
-            where: { id: requestId },
-            data: { status: newStatus },
-        });
-
-        console.log(`Статус заявки ID ${requestId} обновлен на ${newStatus}`);
-        return updatedRequest;
-    } catch (error) {
-        console.error('Ошибка при обновлении статуса заявки:', error);
-    }
-}
-
-async function updateVPTRequestComment(requestId, newComment) {
-    try {
-        // Обновляем статус заявки
-        const updatedRequest = await prisma.vPTRequest.update({
-            where: { id: requestId },
-            data: { comment: newComment },
-        });
-
-        console.log(`Комментарий заявки ID ${requestId} обновлен на ${newComment}`);
-        return updatedRequest;
-    } catch (error) {
-        console.error('Ошибка при обновлении статуса заявки:', error);
-    }
-}
-
-
-// Обработка выбора должностей
+// Обработка кнопок
 bot.on('callback_query', async (query) => {
     let nowdatetime = new Date().toLocaleString('ru-RU', {
         timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric',
@@ -858,8 +723,6 @@ bot.on('callback_query', async (query) => {
             }
         }
     }
-
-
     if (queryTheme === 'vpt_status') {
         console.log(queryId);
         // Внутри любого хендлера, когда нужно проверить заявку:
@@ -999,6 +862,132 @@ bot.on('callback_query', async (query) => {
         }
     }
 });
+
+
+
+/// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ///
+
+function sendVptListInlineKeyboard(bot, chatId, telegramID) {
+    bot.sendMessage(chatId, 'Если вы тренер, выберите подразделения, в которых работаете и планируете проводить ВПТ.\nЕсли вы не тренер -- просто нажмите "Завершить выбор":', {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: 'ТЗ', callback_data: `vpt_list@tz@${telegramID}` }],
+                [{ text: 'ГП', callback_data: `vpt_list@gp@${telegramID}` }],
+                [{ text: 'Аква', callback_data: `vpt_list@aq@${telegramID}` }],
+                [{ text: 'Завершить выбор', callback_data: `vpt_list@done@${telegramID}` }],
+            ],
+        },
+    });
+}
+
+// Функция для преобразования BigInt в строку
+const serializeBigInt = (obj) => {
+    return JSON.parse(JSON.stringify(obj, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+    ));
+};
+
+// Один общий метод
+async function getAggregatedUsers({ chatId, telegramID } = {}) {
+    // Формируем WHERE-условия на лету
+    let conditions = [];
+
+    if (chatId) {
+        // chatId - тип number, можно обернуть в parseInt
+        conditions.push(`u.chatId = ${parseInt(chatId)}`);
+    }
+
+    if (telegramID) {
+        conditions.push(`u.telegramID = ${parseInt(telegramID)}`);
+    }
+
+    // Если есть условия, добавляем WHERE + объединяем через AND
+    let whereClause = '';
+    if (conditions.length > 0) {
+        whereClause = `WHERE ${conditions.join(' AND ')}`;
+    }
+
+    // Выполняем «сырой» запрос
+    // Обратите внимание: используем prisma.$queryRawUnsafe
+    // или формируем «шаблонными строками» с учётом экранирования
+    const results = await prisma.$queryRawUnsafe(`
+      SELECT
+        u.*,
+        COUNT(v.id) AS factVptCount,
+        SUM(CASE WHEN v.status = 'accepted' THEN 1 ELSE 0 END) AS acceptedStatusVptCount,
+        SUM(CASE WHEN v.status = 'rejected' THEN 1 ELSE 0 END) AS rejectedStatusVptCount,
+        SUM(
+          CASE 
+            WHEN v.status <> 'accepted'
+              AND v.status <> 'rejected'
+            THEN 1
+            ELSE 0
+          END
+        ) AS noneStatusVptCount
+      FROM User u
+      LEFT JOIN VPTRequest v
+        ON u.id = v.userId
+        AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
+        AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
+      ${whereClause}
+      GROUP BY u.id
+    `);
+
+    // Возвращаем массив записей (могут быть 0,1 или несколько)
+    return results;
+}
+
+// «Обёртка» для получения всех пользователей:
+async function getUsers() {
+    // Без аргументов => нет WHERE => вернутся все пользователи
+    return await getAggregatedUsers();
+}
+
+// «Обёртка» для получения одного пользователя по chatId:
+async function getUserByChatId(chatId) {
+    // Вызываем общий метод с параметром chatId
+    const results = await getAggregatedUsers({ chatId });
+    // Возвращаем 1-го, если есть
+    return results.length ? results[0] : null;
+}
+
+// «Обёртка» для получения одного пользователя по telegramID:
+async function getUserByTelegramID(telegramID) {
+    // Вызываем общий метод
+    const results = await getAggregatedUsers({ telegramID });
+    // Возвращаем 1-го, если есть
+    return results.length ? results[0] : null;
+}
+
+async function updateVPTRequestStatus(requestId, newStatus) {
+    try {
+        // Обновляем статус заявки
+        const updatedRequest = await prisma.vPTRequest.update({
+            where: { id: requestId },
+            data: { status: newStatus },
+        });
+
+        console.log(`Статус заявки ID ${requestId} обновлен на ${newStatus}`);
+        return updatedRequest;
+    } catch (error) {
+        console.error('Ошибка при обновлении статуса заявки:', error);
+    }
+}
+
+async function updateVPTRequestComment(requestId, newComment) {
+    try {
+        // Обновляем статус заявки
+        const updatedRequest = await prisma.vPTRequest.update({
+            where: { id: requestId },
+            data: { comment: newComment },
+        });
+
+        console.log(`Комментарий заявки ID ${requestId} обновлен на ${newComment}`);
+        return updatedRequest;
+    } catch (error) {
+        console.error('Ошибка при обновлении статуса заявки:', error);
+    }
+}
 
 // Генерация информации о тренере
 function generateUserInfo(user) {
@@ -1279,6 +1268,17 @@ app.post('/vptrequests', async (req, res) => {
         res.status(500).json({ error: 'Внутренняя ошибка сервера' });
     }
 });
+
+// Эндпоинт для получения всех пользователей
+app.get('/fitdirusers', async (req, res) => {
+    try {
+        const users = await prisma.user.findMany();
+        res.json(serializeBigInt(users));
+    } catch (error) {
+        console.error('Ошибка при получении пользователей:', error);
+        res.status(500).json({ error: 'Не удалось получить пользователей' });
+    }
+}); 
 
 
 // Стартуем сервер Express
