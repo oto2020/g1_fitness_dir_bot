@@ -623,9 +623,29 @@ bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     let user = await getUserByChatId(chatId);
 
-    let queryTheme = query.data.split('@')[0];
-    let queryValue = query.data.split('@')[1];
-    let queryId = query.data.split('@')[2];
+    let [queryTheme, queryValue, queryId, clientPhone, clientName] = query.data.split('@');
+    if (queryTheme === 'vc') {
+      const messageId = query.message.message_id;
+      const keyboard = query.message.reply_markup?.inline_keyboard;
+      clientPhone = '+' + BotHelper.parseMessage(clientPhone).phone;
+      console.log(queryTheme, queryValue, queryId, clientPhone, clientName);
+  
+      if (queryValue === 'cancel') {
+        await BotHelper.deleteMessage(bot, chatId, messageId);
+        bot.sendMessage(chatId, `Закрыта анкета клиента ${clientName} ${clientPhone}`);
+      } else {
+        let newText;
+        if (queryValue === 'tz') newText = '✅ ТЗ отправлено ';
+        if (queryValue === 'gp') newText = '✅ ГП отправлено ';
+        if (queryValue === 'aq') newText = '✅ Аква отправлено ';
+  
+        if (newText) {
+          await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, newText);
+          bot.sendMessage(chatId, `Заявка клиента ${clientName} ${clientPhone} по ${newText.replace('✅ ', '')}`);
+        }
+      }
+    }
+
     // перед @ тема нажатой кнопки, после @ значение нажатой кнопки
     if (queryTheme === 'vpt_request') {
         // Внутри любого хендлера, когда нужно проверить заявку:

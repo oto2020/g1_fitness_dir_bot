@@ -60,9 +60,9 @@ static async anketaByPhoneVptRequestCreation(phone, bot, chatId) {
 
                 let inline_keyboard = [
                     [
-                        { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc', 'tz', messageId, phone, name, process.env.FIT_DIR_PHONE].join('@') },
-                        { text: "ГП 🤸🏻‍♀️", callback_data: ['vc', 'gp', messageId, phone, name, process.env.FIT_DIR_PHONE].join('@') },
-                        { text: "Аква 🏊", callback_data: ['vc', 'aq', messageId, phone, name, process.env.FIT_DIR_PHONE].join('@') }
+                        { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc', 'tz', messageId, phone, name].join('@') },
+                        { text: "ГП 🤸🏻‍♀️", callback_data: ['vc', 'gp', messageId, phone, name].join('@') },
+                        { text: "Аква 🏊", callback_data: ['vc', 'aq', messageId, phone, name].join('@') }
                     ],
                     [
                         { text: "✖️ Закрыть", callback_data: ['vc', 'cancel', messageId, phone, name].join('@') }
