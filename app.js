@@ -6,7 +6,10 @@ const bodyParser = require('body-parser');
 
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
+
+// Тот, который умеет работать с API
 const BotHelper = require('./BotHelper');
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const app = express();
 const port = process.env.PORT;
@@ -564,6 +567,18 @@ bot.on('contact', async (msg) => {
 // Обработка ввода текста
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
+
+    // Попробуем распарсить телефон и коммент
+    console.log(msg.text);
+
+    let parsedMessage = BotHelper.parseMessage(msg.text);
+
+    if (parsedMessage?.phone) {
+        const { phone, comment } = parsedMessage;
+        console.log(`phone: ${phone}, comment: ${comment}`);
+        await BotHelper.anketaByPhoneVptRequestCreation(phone, bot, chatId);
+        return;
+    }
 
     if (!userSteps[chatId]) {
         return;
