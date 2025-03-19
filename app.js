@@ -624,7 +624,28 @@ bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     let user = await getUserByChatId(chatId);
 
-    let [queryTheme, queryValue, queryId, clientPhone] = query.data.split('@');
+    let [queryTheme, queryValue, queryId, clientPhone, param5] = query.data.split('@');
+    // vpt request send
+    if (queryTheme === 'vs') {
+        // ['vs', goal, messageId, phone, trainerChatId].join('@') 
+        let goal = queryValue;
+        let messageId = queryId;
+        let phone = clientPhone;
+        let trainerChatId = param5;
+
+        // const keyboard = query.message.reply_markup?.inline_keyboard;
+        // clientPhone = '+' + BotHelper.parseMessage(clientPhone).phone;
+
+        
+        console.log(queryTheme, goal, messageId, phone, trainerChatId);
+
+        if (goal === 'cancel') {
+            await BotHelper.deleteMessage(bot, chatId, messageId);
+            bot.sendMessage(chatId, `Закрыта анкета клиента +${phone}`);
+        }
+    }
+
+    // vpt request create
     if (queryTheme === 'vc') {
         const messageId = query.message.message_id;
         const keyboard = query.message.reply_markup?.inline_keyboard;

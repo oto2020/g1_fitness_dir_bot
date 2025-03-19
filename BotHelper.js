@@ -160,7 +160,7 @@ class BotHelper {
                     trainersWithGoal.forEach((trainer, index) => {
                         row.push({
                             text: trainer.name,
-                            callback_data: ['vs', goal, messageId, phone, trainerChatId].join('@') 
+                            callback_data: ['vs', goal, messageId, phone, trainer.chatId].join('@') 
                         });
 
                         if (row.length === buttonsPerRow || index === trainersWithGoal.length - 1) {
@@ -171,7 +171,7 @@ class BotHelper {
 
                     // Добавляем кнопку закрытия в отдельный ряд
                     inline_keyboard.push([
-                        { text: "✖️ Закрыть", callback_data: "cancel" }
+                        { text: "✖️ Закрыть", callback_data: ['vs', 'cancel', messageId, phone].join('@') }
                     ]);
 
                     await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
