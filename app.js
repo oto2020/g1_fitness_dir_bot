@@ -576,7 +576,7 @@ bot.on('message', async (msg) => {
     if (parsedMessage?.phone) {
         const { phone, comment } = parsedMessage;
         console.log(`phone: ${phone}, comment: ${comment}`);
-        await BotHelper.anketaByPhoneVptRequestCreation(phone, bot, chatId);
+        await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId);
         return;
     }
 
@@ -635,19 +635,24 @@ bot.on('callback_query', async (query) => {
             await BotHelper.deleteMessage(bot, chatId, messageId);
             bot.sendMessage(chatId, `Закрыта анкета клиента ${clientPhone}`);
         } else {
-            let newText;
-            if (queryValue === 'tz') newText = '✅ ТЗ отправлена ';
-            if (queryValue === 'gp') newText = '✅ ГП отправлена ';
-            if (queryValue === 'aq') newText = '✅ Аква отправлена ';
+            let goal;
+            if (queryValue === 'tz') { goal = 'ТЗ'; }
+            if (queryValue === 'gp') { goal = 'ГП'; }
+            if (queryValue === 'aq') { goal = 'Аква'; }
+            await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, `✅ ${goal} отправлена`);
 
-            if (newText) {
-                await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, newText);
-                bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${newText.replace('✅ ', '')}`);
-                // Здесь создается заявка в системе, но пока без тренера, но с целью, комментарием, номером телефона
-                // нужно получить фото (telegram file id и текст)
+            if (goal) {
+                try {
+                    let phoneWithoutPlus = BotHelper.parseMessage(clientPhone)?.phone;
+                    await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal);
+                    bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${goal} отправлена фитдиру`);
+                } catch (e) {
+                    bot.sendMessage(chatId, `Ошибка при отправке заявки клиента ${clientPhone}. Попробуйте позже.\n\n${e.message}`);
+                }                
             }
         }
     }
+    
 
     // перед . тема нажатой кнопки, после . значение нажатой кнопки
     if (queryTheme === 'vpt_request') {
