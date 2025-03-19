@@ -72,6 +72,8 @@ static async anketaByPhoneVptRequestCreation(phone, bot, chatId) {
                 if (fileId) {
                     console.log(`Photo file_id: ${fileId}`);
                 }
+                // let messageForTrainer = `Имя: ${name}\nТелефон: ${phone}\nДата рождения: ${birthDate}\n\nБилеты:\n${ticketsText}`;
+                // return { fileId, messageForTrainer };
             } else {
                 bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
             }

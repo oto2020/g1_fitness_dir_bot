@@ -471,7 +471,7 @@ bot.onText(/\/users/, async (msg) => {
 
     let users = await getUsers();
     users = users.filter(user => user.telegramID)
-    .sort((a, b) => a.name.localeCompare(b.name));// оставляем только тех, у кого есть telegramID и сортируем
+        .sort((a, b) => a.name.localeCompare(b.name));// оставляем только тех, у кого есть telegramID и сортируем
     if (users.length === 0) {
         bot.sendMessage(chatId, 'Нет зарегистрированных тренеров.');
         return;
@@ -613,6 +613,7 @@ bot.on('message', async (msg) => {
     }
 });
 
+
 // Обработка кнопок
 bot.on('callback_query', async (query) => {
     let nowdatetime = new Date().toLocaleString('ru-RU', {
@@ -625,25 +626,27 @@ bot.on('callback_query', async (query) => {
 
     let [queryTheme, queryValue, queryId, clientPhone] = query.data.split('@');
     if (queryTheme === 'vc') {
-      const messageId = query.message.message_id;
-      const keyboard = query.message.reply_markup?.inline_keyboard;
-      clientPhone = '+' + BotHelper.parseMessage(clientPhone).phone;
-      console.log(queryTheme, queryValue, queryId, clientPhone);
-  
-      if (queryValue === 'cancel') {
-        await BotHelper.deleteMessage(bot, chatId, messageId);
-        bot.sendMessage(chatId, `Закрыта анкета клиента ${clientPhone}`);
-      } else {
-        let newText;
-        if (queryValue === 'tz') newText = '✅ ТЗ отправлена ';
-        if (queryValue === 'gp') newText = '✅ ГП отправлена ';
-        if (queryValue === 'aq') newText = '✅ Аква отправлена ';
-  
-        if (newText) {
-          await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, newText);
-          bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${newText.replace('✅ ', '')}`);
+        const messageId = query.message.message_id;
+        const keyboard = query.message.reply_markup?.inline_keyboard;
+        clientPhone = '+' + BotHelper.parseMessage(clientPhone).phone;
+        console.log(queryTheme, queryValue, queryId, clientPhone);
+
+        if (queryValue === 'cancel') {
+            await BotHelper.deleteMessage(bot, chatId, messageId);
+            bot.sendMessage(chatId, `Закрыта анкета клиента ${clientPhone}`);
+        } else {
+            let newText;
+            if (queryValue === 'tz') newText = '✅ ТЗ отправлена ';
+            if (queryValue === 'gp') newText = '✅ ГП отправлена ';
+            if (queryValue === 'aq') newText = '✅ Аква отправлена ';
+
+            if (newText) {
+                await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, newText);
+                bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${newText.replace('✅ ', '')}`);
+                // Здесь создается заявка в системе, но пока без тренера, но с целью, комментарием, номером телефона
+                // нужно получить фото (telegram file id и текст)
+            }
         }
-      }
     }
 
     // перед . тема нажатой кнопки, после . значение нажатой кнопки
@@ -1314,7 +1317,7 @@ app.get('/fitdirusers', async (req, res) => {
         console.error('Ошибка при получении пользователей:', error);
         res.status(500).json({ error: 'Не удалось получить пользователей' });
     }
-}); 
+});
 
 
 // Стартуем сервер Express
