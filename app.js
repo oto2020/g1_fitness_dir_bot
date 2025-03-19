@@ -623,7 +623,7 @@ bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     let user = await getUserByChatId(chatId);
 
-    let [queryTheme, queryValue, queryId, clientPhone] = query.data.split('.');
+    let [queryTheme, queryValue, queryId, clientPhone] = query.data.split('@');
     if (queryTheme === 'vc') {
       const messageId = query.message.message_id;
       const keyboard = query.message.reply_markup?.inline_keyboard;
@@ -907,10 +907,10 @@ function sendVptListInlineKeyboard(bot, chatId, telegramID) {
     bot.sendMessage(chatId, 'Если вы тренер, выберите подразделения, в которых работаете и планируете проводить ВПТ.\nЕсли вы не тренер -- просто нажмите "Завершить выбор":', {
         reply_markup: {
             inline_keyboard: [
-                [{ text: 'ТЗ', callback_data: [`vpt_list`, `tz`, telegramID].join('.') }],
-                [{ text: 'ГП', callback_data: [`vpt_list`, `gp`, telegramID].join('.') }],
-                [{ text: 'Аква', callback_data: [`vpt_list`, `aq`, telegramID].join('.') }],
-                [{ text: 'Завершить регистрацию', callback_data: [`vpt_list`, `done`, telegramID].join('.') }],
+                [{ text: 'ТЗ', callback_data: [`vpt_list`, `tz`, telegramID].join('@') }],
+                [{ text: 'ГП', callback_data: [`vpt_list`, `gp`, telegramID].join('@') }],
+                [{ text: 'Аква', callback_data: [`vpt_list`, `aq`, telegramID].join('@') }],
+                [{ text: 'Завершить регистрацию', callback_data: [`vpt_list`, `done`, telegramID].join('@') }],
             ],
         },
     });
@@ -1086,21 +1086,21 @@ async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser,
     const row1 = [
         {
             text: '✅ Беру',
-            callback_data: [`vpt_status`, `accepted`, request.id].join('.')
+            callback_data: [`vpt_status`, `accepted`, request.id].join('@')
         },
         {
             text: '❌ Не беру',
-            callback_data: [`vpt_status`, `rejected`, request.id].join('.')
+            callback_data: [`vpt_status`, `rejected`, request.id].join('@')
         }
     ];
     const row2 = [
         {
             text: '⚠️ Повторно',
-            callback_data: [`vpt_request`, `povtorno`, request.id].join('.')
+            callback_data: [`vpt_request`, `povtorno`, request.id].join('@')
         },
         {
             text: '🗑 Удалить',
-            callback_data: [`vpt_request`, `remove`, request.id].join('.')
+            callback_data: [`vpt_request`, `remove`, request.id].join('@')
         }
     ];
 

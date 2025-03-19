@@ -34,7 +34,7 @@ static async anketaByPhoneVptRequestCreation(phone, bot, chatId) {
                 const client = clientResponse.data.data;
                 const id = client.id;
                 const name = `${client.name} ${client.last_name}`;
-                const phone = `${client.phone}`;
+                // const phone = `${client.phone}`;
                 const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
                 const photo = client.photo;
                 const tags = client.tags.map(tag => `#${tag.title}`).join('\n');
@@ -60,12 +60,12 @@ static async anketaByPhoneVptRequestCreation(phone, bot, chatId) {
 
                 let inline_keyboard = [
                     [
-                        { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc', 'tz', messageId, phone].join('.') },
-                        { text: "ГП 🤸🏻‍♀️", callback_data: ['vc', 'gp', messageId, phone].join('.') },
-                        { text: "Аква 🏊", callback_data: ['vc', 'aq', messageId, phone].join('.') }
+                        { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc', 'tz', messageId, phone].join('@') },
+                        { text: "ГП 🤸🏻‍♀️", callback_data: ['vc', 'gp', messageId, phone].join('@') },
+                        { text: "Аква 🏊", callback_data: ['vc', 'aq', messageId, phone].join('@') }
                     ],
                     [
-                        { text: "✖️ Закрыть", callback_data: ['vc', 'cancel', messageId, phone].join('.') }
+                        { text: "✖️ Закрыть", callback_data: ['vc', 'cancel', messageId, phone].join('@') }
                     ]
                 ];
                 await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
@@ -149,6 +149,7 @@ static async deleteMessage(bot, chatId, messageId) {
 }
 // Зная обновляет клавиатуру под сообщением
 static async updateInlineKeyboard(bot, chatId, messageId, newKeyboard) {
+    console.log(newKeyboard);
     try {
         await bot.editMessageReplyMarkup(
             { inline_keyboard: newKeyboard },
@@ -163,8 +164,8 @@ static async updateInlineKeyboard(bot, chatId, messageId, newKeyboard) {
 static translateStatus(status) {
     const translations = {
         "active": "🟢 Активно",
-        "not_active": "💸 Продано, не активно",
-        "frozen": "🟠Заморожено",
+        "not_active": "🟠 Не активно",
+        "frozen": "❄️ Заморожено",
         "locked": "🔐 Заблокировано",
         "closed": "❌ Закрыто"
     };
