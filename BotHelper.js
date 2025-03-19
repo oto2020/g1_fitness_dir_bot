@@ -1,4 +1,3 @@
-
 const crypto = require('crypto');
 const fs = require('fs');
 const axios = require('axios');
@@ -149,7 +148,7 @@ static async deleteMessage(bot, chatId, messageId) {
 }
 // Зная обновляет клавиатуру под сообщением
 static async updateInlineKeyboard(bot, chatId, messageId, newKeyboard) {
-    console.log(newKeyboard);
+    // console.log(newKeyboard);
     try {
         await bot.editMessageReplyMarkup(
             { inline_keyboard: newKeyboard },
@@ -251,7 +250,7 @@ static async getClientResponse(passToken) {
 // +7(978) 566-71-99 хочет на ВПТ
 // переводит в phone: 79785667199, comment: "хочет на ВПТ"
 static parseMessage(message) {
-    let match = message.match(/([+8]?\d?[\s\-\(\)]*\d{3}[\s\-\(\)]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2})([\s\S]*)/);
+    let match = message?.match(/([+8]?\d?[\s\-\(\)]*\d{3}[\s\-\(\)]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2})([\s\S]*)/);
 
     if (!match) return null;
 
