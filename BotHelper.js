@@ -35,7 +35,7 @@ static async anketaByPhoneVptRequestCreation(phone, bot, chatId) {
                 const name = `${client.name} ${client.last_name}`;
                 // const phone = `${client.phone}`;
                 const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
-                const photo = client.photo;
+                const photoUrl = client.photo;
                 const tags = client.tags.map(tag => `#${tag.title}`).join('\n');
 
                 // let tag = "ХОЧЕТ НА ВПТ";
@@ -55,7 +55,7 @@ static async anketaByPhoneVptRequestCreation(phone, bot, chatId) {
                 // }
 
                 let captionText = `Имя: ${name}\nТелефон: ${phone}\nДата рождения: ${birthDate}\n${tags}\n\nБилеты:\n${ticketsText}`;
-                const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, chatId, photo, captionText);
+                const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText);
 
                 let inline_keyboard = [
                     [
