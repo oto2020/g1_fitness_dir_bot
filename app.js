@@ -642,6 +642,18 @@ bot.on('callback_query', async (query) => {
         if (goal === 'cancel') {
             await BotHelper.deleteMessage(bot, chatId, messageId);
             bot.sendMessage(chatId, `Закрыта анкета клиента +${phone}`);
+        } else {
+            let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
+            let inline_keyboard = [];
+            inline_keyboard.push(
+                [
+                    { text: `✅ Отправлено ${goal} ${trainer.name}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
+                ],
+                [
+                    { text: "✖️ Закрыть", callback_data: ['vs', 'cancel', messageId, phone].join('@') }
+                ]
+            );
+            await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
         }
     }
 
@@ -660,12 +672,12 @@ bot.on('callback_query', async (query) => {
             if (queryValue === 'tz') { goal = 'ТЗ'; }
             if (queryValue === 'gp') { goal = 'ГП'; }
             if (queryValue === 'aq') { goal = 'Аква'; }
-            await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, `✅ ${goal} отправлена`);
 
             if (goal) {
                 try {
                     let phoneWithoutPlus = BotHelper.parseMessage(clientPhone)?.phone;
                     await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal);
+                    await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, `✅ ${goal} отправлена`);
                     bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${goal} отправлена фитдиру`);
                 } catch (e) {
                     bot.sendMessage(chatId, `Ошибка при отправке заявки клиента ${clientPhone}. Попробуйте позже.\n\n${e.message}`);

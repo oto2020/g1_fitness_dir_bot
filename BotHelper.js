@@ -160,7 +160,7 @@ class BotHelper {
                     trainersWithGoal.forEach((trainer, index) => {
                         row.push({
                             text: trainer.name,
-                            callback_data: ['vs', goal, messageId, phone, trainer.chatId].join('@') 
+                            callback_data: ['vs', goal, messageId, phone, trainer.chatId].join('@')
                         });
 
                         if (row.length === buttonsPerRow || index === trainersWithGoal.length - 1) {
@@ -416,6 +416,19 @@ class BotHelper {
         });
 
         return users;
+    }
+
+    static async getUserByChatId(prisma, chatId) {
+        if (!chatId) {
+            console.error("Chat ID не задан");
+            return null;
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { chatId }
+        });
+
+        return user;
     }
 }
 
