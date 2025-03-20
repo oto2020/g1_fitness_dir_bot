@@ -5,7 +5,7 @@ const path = require('path');
 
 class BotHelper {
     //  В момент создания заявки: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для создателя заявки ТЗ ГП Аква
-    static async anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId) {
+    static async anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment) {
         console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
         // Генерация подписи
         const sign = crypto.createHash('sha256')
@@ -37,7 +37,7 @@ class BotHelper {
                     // const phone = `${client.phone}`;
                     const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
                     const photoUrl = client.photo;
-                    const tags = client.tags.map(tag => `#${tag.title}`).join('\n');
+                    const tags = client.tags.map(tag => `# ${tag.title}`).join('\n');
 
                     // let tag = "ХОЧЕТ НА ВПТ";
                     // try {
@@ -55,7 +55,7 @@ class BotHelper {
                     //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
                     // }
 
-                    let captionText = `Имя: ${name}\nТелефон: +${phone}\nДата рождения: ${birthDate}\n${tags}\n\nБилеты:\n${ticketsText}`;
+                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n+${phone}\n\nВаш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
                     const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText);
 
                     let inline_keyboard = [
@@ -90,7 +90,7 @@ class BotHelper {
 
 
     // В момент выбора тренера: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для выбора тренера
-    static async anketaByPhoneTrainerChoosingToFitDir(phone, bot, chatId, prisma, goal) {
+    static async anketaByPhoneTrainerChoosingToFitDir(phone, bot, chatId, prisma, goal, visitTime, comment) {
         console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
         // Генерация подписи
         const sign = crypto.createHash('sha256')
@@ -140,9 +140,13 @@ class BotHelper {
                     //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
                     // }
 
-                    let captionText = `ОТПРАВЛЕНО ФИТДИРУ на ${goal}\n\nИмя: ${name}\nТелефон: +${phone}\nДата рождения: ${birthDate}\n${tags}\n\nБилеты:\n${ticketsText}`;
+                    let divisionText;
+                    if (goal == 'Аква') divisionText = '🏊 ' + goal;
+                    if (goal == 'ГП') divisionText = '🤸🏻‍♀️ ' + goal;
+                    if (goal == 'ТЗ') divisionText = '🏋🏼‍♂️ ' + goal;
+                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n📞 +${phone}\nОтдел: ${divisionText}\nВремя: ${visitTime}\n${comment?.length ? 'Комментарий:\n' + comment : ''}`;
                     let fitDirChatId = await this.getFitDirChatId(prisma);
-                    // console.log(fitDirChatId);
+                    // console.log(fitDirChatId); 
                     // return;
                     if (!fitDirChatId) {
                         bot.sendMessage('ФитДир не найден');
@@ -175,6 +179,7 @@ class BotHelper {
                     ]);
 
                     await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
+                    console.log('keyboard with trainers updated!');
 
                     return fileId ? fileId : null;
                     // let messageForTrainer = `Имя: ${name}\nТелефон: +${phone}\nДата рождения: ${birthDate}\n\nБилеты:\n${ticketsText}`;
@@ -322,42 +327,42 @@ class BotHelper {
                 usertoken: passToken
             }
         });
-    
+
         function getMembershipServices(el) {
             return (el.type === 'membership' && el.service_list && el.service_list.length > 0)
                 ? 'Не использовано:\n' + el.service_list
                     .map(ss => `➖ ${ss.title}\nОстаток: ${ss.count} (${ss.count_reserves})`).join('\n') + '\n'
                 : '';
         }
-    
+
         function getEndDate(el) {
             return el.end_date
                 ? `(до ${new Date(el.end_date).toLocaleDateString("ru-RU")})\n`
                 : '';
         }
-    
+
         function getPackageCount(el) {
             return (el.type === 'package' && el.count)
                 ? `Остаток: ${el.count}\n`
                 : '';
         }
-    
+
         if (ticketsResponse.data) {
             // Фильтруем только package и membership
             const filteredData = ticketsResponse.data.data.filter(el =>
                 el.type === 'package' || el.type === 'membership'
             );
-    
+
             let txt = filteredData.map(el =>
                 `${this.translateStatus(el.status)}: ${el.title}\n${getEndDate(el)}${getPackageCount(el)}${getMembershipServices(el)}`
-            ).join('\n');
-    
+            ).join('');
+
             return txt || "Нет информации о доступных услугах.";
         } else {
             return "Нет информации о доступных услугах.";
         }
     }
-    
+
 
     // получить клиента
     static async getClientResponse(passToken) {
@@ -451,7 +456,7 @@ class BotHelper {
         const vptRequest = await prisma.vPTRequest.create({
             data: {
                 user: userId ? { connect: { id: userId } } : undefined, // Связываем user, если userId указан
-                screenshotUser: { 
+                screenshotUser: {
                     connect: { uniqueId: screenshotUserId } // Связываем screenshotUser
                 },
                 visitTime,
@@ -461,10 +466,10 @@ class BotHelper {
                 goal
             }
         });
-    
+
         return vptRequest;
     }
-    
+
 
 
     // Создает отправителя заявки в БД

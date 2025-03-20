@@ -583,7 +583,7 @@ bot.on('message', async (msg) => {
         const { phone, comment } = parsedMessage;
         console.log(`phone: ${phone}, comment: ${comment}`);
         comments[phone] = comment;
-        await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId);
+        await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment);
         return;
     }
 
@@ -688,11 +688,11 @@ bot.on('callback_query', async (query) => {
                     try {
                         // Отправляем ФитДиру анкету клиента с кнопками выбора тренера
                         let phoneWithoutPlus = param4;
-                        let photoUrl = await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal);
+                        let comment = comments[phoneWithoutPlus] || '';
+                        let photoUrl = await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal, visitTime, comment);
 
                         // Записываем заявку в БД
                         let trainerTelegramID = null;
-                        let comment = comments[phoneWithoutPlus] || '';
                         try {
                             // пробуем создать если не существует ScreenshotUser 
                             const telegramID = query.from.id;  // Уникальный Telegram ID
@@ -711,7 +711,7 @@ bot.on('callback_query', async (query) => {
                         let inline_keyboard = [];
                         inline_keyboard.push(
                             [
-                                { text: `✅ +${phoneWithoutPlus} отправлен в ${goal}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
+                                { text: `✅ Отправлен в ${goal}, ${visitTime}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
                             ]
                         );
                         await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
