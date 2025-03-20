@@ -90,7 +90,7 @@ class BotHelper {
 
 
     // В момент выбора тренера: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для выбора тренера
-    static async anketaByPhoneTrainerChoosingToFitDir(phone, bot, chatId, prisma, goal, visitTime, comment) {
+    static async anketaByPhoneTrainerChoosingToFitDir(phone, bot, chatId, prisma, goal, visitTime, comment, authorTelegramUserInfo) {
         console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
         // Генерация подписи
         const sign = crypto.createHash('sha256')
@@ -144,7 +144,7 @@ class BotHelper {
                     if (goal == 'Аква') divisionText = '🏊 ' + goal;
                     if (goal == 'ГП') divisionText = '🤸🏻‍♀️ ' + goal;
                     if (goal == 'ТЗ') divisionText = '🏋🏼‍♂️ ' + goal;
-                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n📞 +${phone}\nОтдел: ${divisionText}\nВремя: ${visitTime}\n${comment?.length ? 'Комментарий:\n' + comment : ''}`;
+                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n📞 +${phone}\nОтдел: ${divisionText}\nВремя: ${visitTime}\n${comment?.length ? 'Комментарий:\n✍️ ' + comment : ''} \n\nАвтор: ${authorTelegramUserInfo}`;
                     let fitDirChatId = await this.getFitDirChatId(prisma);
                     // console.log(fitDirChatId); 
                     // return;
@@ -497,6 +497,10 @@ class BotHelper {
             console.error("Ошибка при проверке/создании ScreenshotUser:", error);
             throw new Error("Не удалось обработать ScreenshotUser");
         }
+    }
+
+    static getQueryTelegramUserInfo (query) {
+        return '@' + (query?.from?.username || 'НетНикнейма') + ' (' + (query?.from?.first_name || 'НетИмени ') + ' ' + (query?.from?.last_name || 'НетФамилии') + ')'; // Никнейм (может отсутствовать)
     }
 }
 

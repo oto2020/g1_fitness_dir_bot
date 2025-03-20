@@ -686,19 +686,21 @@ bot.on('callback_query', async (query) => {
 
                 if (visitTime) {
                     try {
+                        // Никнейми и ФИО того, кто нажал на кнопку
+                        const authorTelegramUserInfo = BotHelper.getQueryTelegramUserInfo(query); 
+
                         // Отправляем ФитДиру анкету клиента с кнопками выбора тренера
                         let phoneWithoutPlus = param4;
                         let comment = comments[phoneWithoutPlus] || '';
-                        let photoUrl = await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal, visitTime, comment);
+                        let photoUrl = await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal, visitTime, comment, authorTelegramUserInfo);
 
                         // Записываем заявку в БД
                         let trainerTelegramID = null;
                         try {
                             // пробуем создать если не существует ScreenshotUser 
                             const telegramID = query.from.id;  // Уникальный Telegram ID
-                            const telegramNickname = query.from.username || 'Нет никнейма'; // Никнейм (может отсутствовать)
-                            // Создаем и/или получаем автора заявки
-                            let screenshotUser = await BotHelper.checkOrCreateScreenshotUser(prisma, telegramID, telegramNickname);
+                             // Создаем и/или получаем автора заявки
+                            let screenshotUser = await BotHelper.checkOrCreateScreenshotUser(prisma, telegramID, authorTelegramUserInfo);
                             let authorTelegramID = screenshotUser.uniqueId;
                             let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoUrl, comment, goal);
                         } catch (e) {
