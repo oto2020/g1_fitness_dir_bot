@@ -77,24 +77,24 @@ model ScreenshotUser {
   uniqueId         String   @id @db.VarChar(255)
   sender           String   @default("Координатор")
   create_time      DateTime @default(now())
-  homeStartX       Int      @default(150)
-  homeStartY       Int      @default(210)
-  homeWidth        Int      @default(860)
-  homeHeight       Int      @default(810)
-  f11StartX        Int      @default(150)
-  f11StartY        Int      @default(210)
-  f11Width         Int      @default(860)
-  f11Height        Int      @default(810)
-  upscaleFactor    Int      @default(2)
-  borderColor      String   @default("Silver") @db.VarChar(45)
-  borderThickness  Int      @default(20)
+  homeStartX       Int?      @default(150)
+  homeStartY       Int?      @default(210)
+  homeWidth        Int?      @default(860)
+  homeHeight       Int?      @default(810)
+  f11StartX        Int?      @default(150)
+  f11StartY        Int?      @default(210)
+  f11Width         Int?      @default(860)
+  f11Height        Int?      @default(810)
+  upscaleFactor    Int?      @default(2)
+  borderColor      String?   @default("Silver") @db.VarChar(45)
+  borderThickness  Int?      @default(20)
 
   vptRequests VPTRequest[] // Связь с заявками на ВПТ
 }
 
 model VPTRequest {
   id             BigInt   @id @default(autoincrement())
-  userId         BigInt   @map("userId")
+  userId         BigInt?   @map("userId")
   screenshotUserId   String   @map("screenshotUserId") @db.VarChar(255)
   visitTime      String   @db.VarChar(255) // Утро, Обед, Вечер, Весь день
   phoneNumber    String   @db.VarChar(255)
@@ -109,6 +109,6 @@ model VPTRequest {
   // Отказ тренера → rejected
   status         String?   @db.VarChar(255) @default("none")
 
-  user           User     @relation(fields: [userId], references: [id])
+  user           User?     @relation(fields: [userId], references: [id])
   screenshotUser     ScreenshotUser @relation(fields: [screenshotUserId], references: [uniqueId])
 }

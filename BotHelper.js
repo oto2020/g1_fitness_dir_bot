@@ -55,17 +55,17 @@ class BotHelper {
                     //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
                     // }
 
-                    let captionText = `Имя: ${name}\nТелефон: ${phone}\nДата рождения: ${birthDate}\n${tags}\n\nБилеты:\n${ticketsText}`;
+                    let captionText = `Имя: ${name}\nТелефон: +${phone}\nДата рождения: ${birthDate}\n${tags}\n\nБилеты:\n${ticketsText}`;
                     const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText);
 
                     let inline_keyboard = [
                         [
-                            { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc', 'tz', messageId, phone].join('@') },
-                            { text: "ГП 🤸🏻‍♀️", callback_data: ['vc', 'gp', messageId, phone].join('@') },
-                            { text: "Аква 🏊", callback_data: ['vc', 'aq', messageId, phone].join('@') }
+                            { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc_goal', 'tz', messageId, phone].join('@') },
+                            { text: "ГП 🤸🏻‍♀️", callback_data: ['vc_goal', 'gp', messageId, phone].join('@') },
+                            { text: "Аква 🏊", callback_data: ['vc_goal', 'aq', messageId, phone].join('@') }
                         ],
                         [
-                            { text: "✖️ Закрыть", callback_data: ['vc', 'cancel', messageId, phone].join('@') }
+                            { text: "✖️ Закрыть", callback_data: ['vc_goal', 'cancel', messageId, phone].join('@') }
                         ]
                     ];
                     await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
@@ -73,7 +73,7 @@ class BotHelper {
                     if (fileId) {
                         console.log(`Photo file_id: ${fileId}`);
                     }
-                    // let messageForTrainer = `Имя: ${name}\nТелефон: ${phone}\nДата рождения: ${birthDate}\n\nБилеты:\n${ticketsText}`;
+                    // let messageForTrainer = `Имя: ${name}\nТелефон: +${phone}\nДата рождения: ${birthDate}\n\nБилеты:\n${ticketsText}`;
                     // return { fileId, messageForTrainer };
                 } else {
                     bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
@@ -176,10 +176,8 @@ class BotHelper {
 
                     await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
 
-                    if (fileId) {
-                        console.log(`Photo file_id: ${fileId}`);
-                    }
-                    // let messageForTrainer = `Имя: ${name}\nТелефон: ${phone}\nДата рождения: ${birthDate}\n\nБилеты:\n${ticketsText}`;
+                    return fileId ? fileId : null;
+                    // let messageForTrainer = `Имя: ${name}\nТелефон: +${phone}\nДата рождения: ${birthDate}\n\nБилеты:\n${ticketsText}`;
                     // return { fileId, messageForTrainer };
                 } else {
                     bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
@@ -429,6 +427,53 @@ class BotHelper {
         });
 
         return user;
+    }
+
+    static async createVPTRequest(prisma, userId, screenshotUserId, visitTime, phoneNumber, photo, comment, goal) {
+        const vptRequest = await prisma.vPTRequest.create({
+            data: {
+                user: userId ? { connect: { id: userId } } : undefined, // Связываем user, если userId указан
+                screenshotUser: { 
+                    connect: { uniqueId: screenshotUserId } // Связываем screenshotUser
+                },
+                visitTime,
+                phoneNumber,
+                photo,
+                comment,
+                goal
+            }
+        });
+    
+        return vptRequest;
+    }
+    
+
+
+    // Создает отправителя заявки в БД
+    static async checkOrCreateScreenshotUser(prisma, telegramID, telegramNickname) {
+        try {
+            let uniqueId = telegramID.toString();
+            let sender = telegramNickname;
+            // Проверяем, существует ли ScreenshotUser с таким uniqueId
+            let screenshotUser = await prisma.screenshotUser.findUnique({
+                where: { uniqueId }
+            });
+
+            // Если не найден, создаём нового пользователя
+            if (!screenshotUser) {
+                screenshotUser = await prisma.screenshotUser.create({
+                    data: {
+                        uniqueId,
+                        sender
+                    }
+                });
+            }
+
+            return screenshotUser;
+        } catch (error) {
+            console.error("Ошибка при проверке/создании ScreenshotUser:", error);
+            throw new Error("Не удалось обработать ScreenshotUser");
+        }
     }
 }
 

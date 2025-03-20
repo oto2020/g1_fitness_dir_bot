@@ -564,6 +564,9 @@ bot.on('contact', async (msg) => {
     }
 });
 
+
+const comments = {}; // Хранение в памяти комментариев по ключу номера телефона
+
 // Обработка ввода текста
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
@@ -579,6 +582,7 @@ bot.on('message', async (msg) => {
     if (parsedMessage?.phone) {
         const { phone, comment } = parsedMessage;
         console.log(`phone: ${phone}, comment: ${comment}`);
+        comments[phone] = comment;
         await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId);
         return;
     }
@@ -616,7 +620,6 @@ bot.on('message', async (msg) => {
     }
 });
 
-
 // Обработка кнопок
 bot.on('callback_query', async (query) => {
     let nowdatetime = new Date().toLocaleString('ru-RU', {
@@ -628,7 +631,104 @@ bot.on('callback_query', async (query) => {
     let user = await getUserByChatId(chatId);
 
     let [queryTheme, queryValue, queryId, param4, param5] = query.data.split('@');
-    // Рядовой ФитнесДиректор выбирvpt request send
+
+
+    // Рядовой юзер выбрал подразделение "ГП" "ТЗ" "Аква" (vpt request create)
+    if (queryTheme === 'vc_goal') {
+        const messageId = query.message.message_id;
+        // const keyboard = query.message.reply_markup?.inline_keyboard; // для изменения только одной кнопки
+        let clientPhone = '+' + BotHelper.parseMessage(param4).phone;
+        console.log(queryTheme, queryValue, queryId, clientPhone);
+
+        if (queryValue === 'cancel') {
+            await BotHelper.deleteMessage(bot, chatId, messageId);
+            bot.sendMessage(chatId, `Закрыта анкета клиента ${clientPhone}`);
+        } else {
+            let goal = queryValue;
+            let inline_keyboard = [
+                [
+                    { text: "🌅 Утро", callback_data: ['vc_time', goal, messageId, param4, 'u'].join('@') },
+                    { text: "☀️ Обед", callback_data: ['vc_time', goal, messageId, param4, 'o'].join('@') },
+                    { text: "🌙 Вечер", callback_data: ['vc_time', goal, messageId, param4, 'v'].join('@') },
+                    { text: "🌍 Весь день", callback_data: ['vc_time', goal, messageId, param4, 'all'].join('@') }
+                ],
+                [
+                    { text: "✖️ Закрыть", callback_data: ['vc_time', 'cancel', messageId, param4].join('@') }
+                ]
+            ];
+            await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
+
+        }
+    }
+
+    // Рядовой юзер выбрал время "Утро" "Обед" "Вечер" (vpt request create)
+    if (queryTheme === 'vc_time') {
+        const messageId = query.message.message_id;
+        // const keyboard = query.message.reply_markup?.inline_keyboard; // для изменения только одной кнопки
+        let clientPhone = '+' + param4;
+        console.log(queryTheme, queryValue, queryId, clientPhone);
+
+        if (queryValue === 'cancel') {
+            await BotHelper.deleteMessage(bot, chatId, messageId);
+            bot.sendMessage(chatId, `Закрыта анкета клиента ${clientPhone}`);
+        } else {
+            let goal;
+            if (queryValue === 'tz') { goal = 'ТЗ'; }
+            if (queryValue === 'gp') { goal = 'ГП'; }
+            if (queryValue === 'aq') { goal = 'Аква'; }
+
+            if (goal) {
+                let visitTime;
+                if (param5 === 'u') { visitTime = 'Утро' }
+                if (param5 === 'o') { visitTime = 'Обед' }
+                if (param5 === 'v') { visitTime = 'Вечер' }
+                if (param5 === 'all') { visitTime = 'Весь день' }
+
+                if (visitTime) {
+                    try {
+                        // Отправляем ФитДиру анкету клиента с кнопками выбора тренера
+                        let phoneWithoutPlus = param4;
+                        let photoUrl = await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal);
+
+                        // Записываем заявку в БД
+                        let trainerTelegramID = null;
+                        let comment = comments[phoneWithoutPlus] || '';
+                        try {
+                            // пробуем создать если не существует ScreenshotUser 
+                            const telegramID = query.from.id;  // Уникальный Telegram ID
+                            const telegramNickname = query.from.username || 'Нет никнейма'; // Никнейм (может отсутствовать)
+                            // Создаем и/или получаем автора заявки
+                            let screenshotUser = await BotHelper.checkOrCreateScreenshotUser(prisma, telegramID, telegramNickname);
+                            let authorTelegramID = screenshotUser.uniqueId;
+                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoUrl, comment, goal);
+                        } catch (e) {
+                            bot.sendMessage(chatId, 'Ошибка при сохранении заявки в БД');
+                            console.error(e);
+                        }
+
+
+                        // await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, `✅ ${goal} отправлена`);
+                        let inline_keyboard = [];
+                        inline_keyboard.push(
+                            [
+                                { text: `✅ +${phoneWithoutPlus} отправлен в ${goal}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
+                            ]
+                        );
+                        await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
+
+                        // bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${goal} отправлена фитдиру`);
+                        // TODO: РЕАЛИЗОВАТЬ СОХРАНЕНИЕ В БД 
+                        // scheenShotUserId: это TelegramID автора, кто отправил
+
+                    } catch (e) {
+                        bot.sendMessage(chatId, `Ошибка при отправке заявки клиента ${clientPhone}. Попробуйте позже.\n\n${e.message}`);
+                    }
+                }
+            }
+        }
+    }
+
+    // ФитДир выбрал тренера vpt request send
     if (queryTheme === 'vs') {
         // ['vs', goal, messageId, phone, trainerChatId].join('@') 
         let goal = queryValue;
@@ -639,7 +739,7 @@ bot.on('callback_query', async (query) => {
         // const keyboard = query.message.reply_markup?.inline_keyboard;
         // param4 = '+' + BotHelper.parseMessage(param4).phone;
 
-        
+
         console.log(queryTheme, goal, messageId, phone, trainerChatId);
 
         if (goal === 'cancel') {
@@ -657,46 +757,6 @@ bot.on('callback_query', async (query) => {
         }
     }
 
-    // Рядовой юзер нажимает на одну из кнопок выбора подразделения "ГП" "ТЗ" "Аква" (vpt request create)
-    if (queryTheme === 'vc') {
-        const messageId = query.message.message_id;
-        const keyboard = query.message.reply_markup?.inline_keyboard;
-        let clientPhone = '+' + BotHelper.parseMessage(param4).phone;
-        console.log(queryTheme, queryValue, queryId, clientPhone);
-
-        if (queryValue === 'cancel') {
-            await BotHelper.deleteMessage(bot, chatId, messageId);
-            bot.sendMessage(chatId, `Закрыта анкета клиента ${clientPhone}`);
-        } else {
-            let goal;
-            if (queryValue === 'tz') { goal = 'ТЗ'; }
-            if (queryValue === 'gp') { goal = 'ГП'; }
-            if (queryValue === 'aq') { goal = 'Аква'; }
-
-            if (goal) {
-                try {
-                    let phoneWithoutPlus = BotHelper.parseMessage(param4)?.phone;
-                    await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal);
-                    // await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, `✅ ${goal} отправлена`);
-                    let inline_keyboard = [];
-                    inline_keyboard.push(
-                        [
-                            { text: `✅ +${phoneWithoutPlus} отправлен в ${goal}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
-                        ]
-                    );
-                    await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
-
-                    // bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${goal} отправлена фитдиру`);
-                    // TODO: РЕАЛИЗОВАТЬ СОХРАНЕНИЕ В БД 
-                    // scheenShotUserId: это TelegramID автора, кто отправил
-
-                } catch (e) {
-                    bot.sendMessage(chatId, `Ошибка при отправке заявки клиента ${clientPhone}. Попробуйте позже.\n\n${e.message}`);
-                }                
-            }
-        }
-    }
-    
     // Фитдир направляет повторно либо удаляет заявку: povtorno или remove "Повторно" "Удалить"
     if (queryTheme === 'vpt_request') {
         // Внутри любого хендлера, когда нужно проверить заявку:
