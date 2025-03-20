@@ -570,6 +570,9 @@ bot.on('message', async (msg) => {
 
     // Попробуем распарсить телефон и коммент
     console.log(msg.text);
+    if (msg.text.startsWith('/')) {
+        return;
+    }
 
     let parsedMessage = BotHelper.parseMessage(msg.text);
 
