@@ -570,7 +570,7 @@ bot.on('message', async (msg) => {
 
     // Попробуем распарсить телефон и коммент
     console.log(msg.text);
-    if (msg.text.startsWith('/')) {
+    if (msg.text?.startsWith('/')) {
         return;
     }
 
@@ -627,17 +627,17 @@ bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     let user = await getUserByChatId(chatId);
 
-    let [queryTheme, queryValue, queryId, clientPhone, param5] = query.data.split('@');
-    // vpt request send
+    let [queryTheme, queryValue, queryId, param4, param5] = query.data.split('@');
+    // Рядовой ФитнесДиректор выбирvpt request send
     if (queryTheme === 'vs') {
         // ['vs', goal, messageId, phone, trainerChatId].join('@') 
         let goal = queryValue;
         let messageId = queryId;
-        let phone = clientPhone;
+        let phone = param4;
         let trainerChatId = param5;
 
         // const keyboard = query.message.reply_markup?.inline_keyboard;
-        // clientPhone = '+' + BotHelper.parseMessage(clientPhone).phone;
+        // param4 = '+' + BotHelper.parseMessage(param4).phone;
 
         
         console.log(queryTheme, goal, messageId, phone, trainerChatId);
@@ -651,20 +651,17 @@ bot.on('callback_query', async (query) => {
             inline_keyboard.push(
                 [
                     { text: `✅ Отправлено ${goal} ${trainer.name}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
-                ],
-                [
-                    { text: "✖️ Закрыть", callback_data: ['vs', 'cancel', messageId, phone].join('@') }
                 ]
             );
             await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
         }
     }
 
-    // vpt request create
+    // Рядовой юзер нажимает на одну из кнопок выбора подразделения "ГП" "ТЗ" "Аква" (vpt request create)
     if (queryTheme === 'vc') {
         const messageId = query.message.message_id;
         const keyboard = query.message.reply_markup?.inline_keyboard;
-        clientPhone = '+' + BotHelper.parseMessage(clientPhone).phone;
+        let clientPhone = '+' + BotHelper.parseMessage(param4).phone;
         console.log(queryTheme, queryValue, queryId, clientPhone);
 
         if (queryValue === 'cancel') {
@@ -678,10 +675,21 @@ bot.on('callback_query', async (query) => {
 
             if (goal) {
                 try {
-                    let phoneWithoutPlus = BotHelper.parseMessage(clientPhone)?.phone;
+                    let phoneWithoutPlus = BotHelper.parseMessage(param4)?.phone;
                     await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal);
-                    await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, `✅ ${goal} отправлена`);
-                    bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${goal} отправлена фитдиру`);
+                    // await BotHelper.updateButtonText(bot, chatId, messageId, keyboard, query.data, `✅ ${goal} отправлена`);
+                    let inline_keyboard = [];
+                    inline_keyboard.push(
+                        [
+                            { text: `✅ +${phoneWithoutPlus} отправлен в ${goal}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
+                        ]
+                    );
+                    await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
+
+                    // bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${goal} отправлена фитдиру`);
+                    // TODO: РЕАЛИЗОВАТЬ СОХРАНЕНИЕ В БД 
+                    // scheenShotUserId: это TelegramID автора, кто отправил
+
                 } catch (e) {
                     bot.sendMessage(chatId, `Ошибка при отправке заявки клиента ${clientPhone}. Попробуйте позже.\n\n${e.message}`);
                 }                
@@ -689,8 +697,7 @@ bot.on('callback_query', async (query) => {
         }
     }
     
-
-    // перед . тема нажатой кнопки, после . значение нажатой кнопки
+    // Фитдир направляет повторно либо удаляет заявку: povtorno или remove "Повторно" "Удалить"
     if (queryTheme === 'vpt_request') {
         // Внутри любого хендлера, когда нужно проверить заявку:
         const request = await checkRequestExistence(bot, chatId, queryId);
@@ -803,8 +810,9 @@ bot.on('callback_query', async (query) => {
             }
         }
     }
+
+    // Тренер берет либо отклоняет заявку: accepted rejected "Беру" "Не беру"
     if (queryTheme === 'vpt_status') {
-        console.log(queryId);
         // Внутри любого хендлера, когда нужно проверить заявку:
         const request = await checkRequestExistence(bot, chatId, queryId);
         // Если функция вернула false — значит заявки нет или произошла ошибка
@@ -844,6 +852,8 @@ bot.on('callback_query', async (query) => {
 
         }
     }
+
+    // Тренер выбирает подразделение: "ТЗ" "ГП" "Аква" "Завершить регистрацию"
     if (queryTheme === 'vpt_list') {
         let selection = '';
         if (queryValue === 'tz') {
