@@ -322,24 +322,42 @@ class BotHelper {
                 usertoken: passToken
             }
         });
+    
         function getMembershipServices(el) {
-            return (el.type == 'membership' && el.service_list && el.service_list.length > 0)
-                ? 'Не использовано:\n' + el.service_list.map(ss => `➖${ss.title}\nОстаток: ${ss.count}(${ss.count_reserves})`).join('\n') + '\n'
+            return (el.type === 'membership' && el.service_list && el.service_list.length > 0)
+                ? 'Не использовано:\n' + el.service_list
+                    .map(ss => `➖ ${ss.title}\nОстаток: ${ss.count} (${ss.count_reserves})`).join('\n') + '\n'
                 : '';
         }
+    
         function getEndDate(el) {
-            return (el.end_date) ? '(до ' + new Date(el.end_date).toLocaleDateString("ru-RU") + ')\n' : '';
+            return el.end_date
+                ? `(до ${new Date(el.end_date).toLocaleDateString("ru-RU")})\n`
+                : '';
         }
+    
         function getPackageCount(el) {
-            return (el.type == 'package' && el.count) ? `Остаток: ${el.count}\n` : '';
+            return (el.type === 'package' && el.count)
+                ? `Остаток: ${el.count}\n`
+                : '';
         }
+    
         if (ticketsResponse.data) {
-            let txt = ticketsResponse.data.data.map(el => `${this.translateStatus(el.status)}: ${el.title}\n${getEndDate(el)}${getPackageCount(el)}${getMembershipServices(el)}`).join('\n');
-            return txt;
+            // Фильтруем только package и membership
+            const filteredData = ticketsResponse.data.data.filter(el =>
+                el.type === 'package' || el.type === 'membership'
+            );
+    
+            let txt = filteredData.map(el =>
+                `${this.translateStatus(el.status)}: ${el.title}\n${getEndDate(el)}${getPackageCount(el)}${getMembershipServices(el)}`
+            ).join('\n');
+    
+            return txt || "Нет информации о доступных услугах.";
         } else {
-            return "Нет информации о доступных услугах."
+            return "Нет информации о доступных услугах.";
         }
     }
+    
 
     // получить клиента
     static async getClientResponse(passToken) {
