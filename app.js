@@ -761,7 +761,7 @@ bot.on('callback_query', async (query) => {
             }
             await BotHelper.deleteVPTRequestById(prisma, vptRequestId);
             await BotHelper.deleteMessage(bot, chatId, messageId);
-            bot.sendMessage(chatId, `--- Удалена анкета--- \n\n${vptRequest.comment}\\nЦель: ${BotHelper.goalRusWithEmojii(vptRequest.goal)}\nВремя: ${vptRequest.visitTime}`);
+            bot.sendMessage(chatId, `--- Удалена анкета--- \n\n${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
         } else {
             let goalRus = BotHelper.goalRus(goal);
             let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
