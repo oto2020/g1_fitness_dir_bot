@@ -102,6 +102,7 @@ model VPTRequest {
   comment        String?  @db.VarChar(1000)
   goal           String?  @db.VarChar(255) // Новое поле "цель"
   createdAt      DateTime @default(now())
+  tgChatMessageId String? // Новый столбец (nullable)
 
   // Возможные статусы:
   // Не в работе → none

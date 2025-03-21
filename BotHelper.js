@@ -90,7 +90,7 @@ class BotHelper {
 
 
     // В момент выбора тренера: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для выбора тренера
-    static async anketaByPhoneTrainerChoosingToFitDir(phone, bot, chatId, prisma, goal, visitTime, comment, authorTelegramUserInfo) {
+    static async anketaByPhoneTrainerChoosingToFitDir(phone, bot, chatId, prisma, goal, visitTime, comment, authorTelegramUserInfo, vptRequest) {
         console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
         // Генерация подписи
         const sign = crypto.createHash('sha256')
@@ -173,7 +173,7 @@ class BotHelper {
 
                     // Добавляем кнопку закрытия в отдельный ряд
                     inline_keyboard.push([
-                        { text: "🗑 Удалить заявку", callback_data: ['vs', 'delete', messageId, phone, goal, visitTime].join('@') }
+                        { text: "🗑 Удалить заявку", callback_data: ['vs', 'delete', messageId, phone, vptRequest.id].join('@') }
                     ]);
 
                     await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
@@ -220,7 +220,7 @@ class BotHelper {
     static async sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText) {
         try {
             let filePath;
-    
+
             if (!photoUrl) {
                 // Если URL пустой, используем локальный файл g1.jpeg
                 filePath = path.join(__dirname, 'g1.jpeg');
@@ -233,24 +233,24 @@ class BotHelper {
                     headers,
                     responseType: 'arraybuffer'
                 });
-    
+
                 filePath = path.join(__dirname, 'photo.jpg');
                 fs.writeFileSync(filePath, response.data);
             }
-    
+
             const sentMessage = await bot.sendPhoto(chatId, filePath, {
                 caption: captionText,
                 parse_mode: 'Markdown'
             });
-    
+
             const messageId = sentMessage.message_id;
             const fileId = sentMessage.photo[sentMessage.photo.length - 1].file_id;
-    
+
             // Удаляем временный файл, если загружали его
             if (photoUrl) {
                 fs.unlinkSync(filePath);
             }
-    
+
             return { fileId, messageId };
         } catch (error) {
             console.error('Ошибка загрузки фото:', error);
@@ -258,7 +258,7 @@ class BotHelper {
             return null;
         }
     }
-    
+
 
     // Вспомогательные фукнции по работе с уже созданными сообщениями по chatId и messageId
     static async deleteMessage(bot, chatId, messageId) {
@@ -364,7 +364,7 @@ class BotHelper {
 
             let txt = filteredData.map(el =>
                 `${this.translateStatus(el.status)}: ${el.title}\n${getEndDate(el)}${getPackageCount(el)}${getMembershipServices(el)}`
-            ).join('');
+            ).join('\n');
 
             return txt || "Нет информации о доступных услугах.";
         } else {
@@ -461,7 +461,35 @@ class BotHelper {
         return user;
     }
 
-    static async createVPTRequest(prisma, userId, screenshotUserId, visitTime, phoneNumber, photo, comment, goal) {
+
+    static async getVPTRequestById(prisma, id) {
+        try {
+            const vptRequest = await prisma.vPTRequest.findUnique({
+                where: { id }
+            });
+
+            return vptRequest;
+        } catch (error) {
+            console.error(`Ошибка получения vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
+
+    static async deleteVPTRequestById(prisma, id) {
+        try {
+            const deletedRequest = await prisma.vPTRequest.delete({
+                where: { id }
+            });
+
+            return deletedRequest;
+        } catch (error) {
+            console.error(`Ошибка удаления vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
+
+
+    static async createVPTRequest(prisma, userId, screenshotUserId, visitTime, phoneNumber, photo, comment, goal, tgChatMessageId) {
         const vptRequest = await prisma.vPTRequest.create({
             data: {
                 user: userId ? { connect: { id: userId } } : undefined, // Связываем user, если userId указан
@@ -472,13 +500,42 @@ class BotHelper {
                 phoneNumber,
                 photo,
                 comment,
-                goal
+                goal,
+                tgChatMessageId
             }
         });
 
         return vptRequest;
     }
 
+    // обновляет поле tgChatMessageId для заявки на ВПТ
+    static async updateTgChatMessageId(prisma, id, tgChatMessageId) {
+        try {
+            const updatedRequest = await prisma.vPTRequest.update({
+                where: { id },
+                data: { tgChatMessageId }
+            });
+
+            return updatedRequest;
+        } catch (error) {
+            console.error(`Ошибка обновления tgChatMessageId для vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
+
+    static async updateVPTRequestPhoto(prisma, id, photoUrl) {
+        try {
+            const updatedRequest = await prisma.vPTRequest.update({
+                where: { id },
+                data: { photo: photoUrl }
+            });
+
+            return updatedRequest;
+        } catch (error) {
+            console.error(`Ошибка обновления photoUrl для vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
 
 
     // Создает отправителя заявки в БД
@@ -508,7 +565,7 @@ class BotHelper {
         }
     }
 
-    static getQueryTelegramUserInfo (query) {
+    static getQueryTelegramUserInfo(query) {
         return '@' + (query?.from?.username || 'НетНикнейма') + ' (' + (query?.from?.first_name || 'НетИмени ') + ' ' + (query?.from?.last_name || 'НетФамилии') + ')'; // Никнейм (может отсутствовать)
     }
 
