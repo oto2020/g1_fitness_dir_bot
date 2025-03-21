@@ -630,7 +630,7 @@ bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     let user = await getUserByChatId(chatId);
 
-    let [queryTheme, queryValue, queryId, param4, param5] = query.data.split('@');
+    let [queryTheme, queryValue, queryId, param4, param5, param6] = query.data.split('@');
 
 
     // Рядовой юзер выбрал подразделение "ГП" "ТЗ" "Аква" (vpt request create)
@@ -672,12 +672,13 @@ bot.on('callback_query', async (query) => {
             await BotHelper.deleteMessage(bot, chatId, messageId);
             bot.sendMessage(chatId, `Закрыта анкета клиента ${clientPhone}`);
         } else {
-            let goal;
-            if (queryValue === 'tz') { goal = 'ТЗ'; }
-            if (queryValue === 'gp') { goal = 'ГП'; }
-            if (queryValue === 'aq') { goal = 'Аква'; }
+            let goal = queryValue;
+            let goalRus = goal;
+            if (goal === 'tz') { goalRus = 'ТЗ'; }
+            if (goal === 'gp') { goalRus = 'ГП'; }
+            if (goal === 'aq') { goalRus = 'Аква'; }
 
-            if (goal) {
+            if (queryValue) {
                 let visitTime;
                 if (param5 === 'u') { visitTime = 'Утро' }
                 if (param5 === 'o') { visitTime = 'Обед' }
@@ -702,7 +703,7 @@ bot.on('callback_query', async (query) => {
                              // Создаем и/или получаем автора заявки
                             let screenshotUser = await BotHelper.checkOrCreateScreenshotUser(prisma, telegramID, authorTelegramUserInfo);
                             let authorTelegramID = screenshotUser.uniqueId;
-                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoUrl, comment, goal);
+                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoUrl, comment, goalRus);
                         } catch (e) {
                             bot.sendMessage(chatId, 'Ошибка при сохранении заявки в БД');
                             console.error(e);
@@ -713,15 +714,10 @@ bot.on('callback_query', async (query) => {
                         let inline_keyboard = [];
                         inline_keyboard.push(
                             [
-                                { text: `✅ Отправлен в ${goal}, ${visitTime}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
+                                { text: `✅ Отправлен в ${goalRus}, ${visitTime}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
                             ]
                         );
                         await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
-
-                        // bot.sendMessage(chatId, `Заявка клиента ${clientPhone} по ${goal} отправлена фитдиру`);
-                        // TODO: РЕАЛИЗОВАТЬ СОХРАНЕНИЕ В БД 
-                        // scheenShotUserId: это TelegramID автора, кто отправил
-
                     } catch (e) {
                         bot.sendMessage(chatId, `Ошибка при отправке заявки клиента ${clientPhone}. Попробуйте позже.\n\n${e.message}`);
                     }
@@ -737,22 +733,28 @@ bot.on('callback_query', async (query) => {
         let messageId = queryId;
         let phone = param4;
         let trainerChatId = param5;
-
+        let comment = comments[phone];
+        let visitTime = param6;
         // const keyboard = query.message.reply_markup?.inline_keyboard;
         // param4 = '+' + BotHelper.parseMessage(param4).phone;
 
 
-        console.log(queryTheme, goal, messageId, phone, trainerChatId);
+        console.log(queryTheme, goal, messageId, phone, trainerChatId, comment, visitTime);
 
-        if (goal === 'cancel') {
-            await BotHelper.deleteMessage(bot, chatId, messageId);
-            bot.sendMessage(chatId, `Закрыта анкета клиента +${phone}`);
+        // ФитДир нажал "Удалить заявку"
+        if (goal === 'delete') {
+            // await BotHelper.deleteMessage(bot, chatId, messageId);
+            bot.sendMessage(chatId, `Удалена анкета клиента \n+${phone} ${comment}\nПодразделение: ${param5}, Время: ${visitTime}`);
         } else {
+            let goalRus = goal;
+            if (goal === 'tz') { goalRus = 'ТЗ'; }
+            if (goal === 'gp') { goalRus = 'ГП'; }
+            if (goal === 'aq') { goalRus = 'Аква'; }
             let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
             let inline_keyboard = [];
             inline_keyboard.push(
                 [
-                    { text: `✅ Отправлено ${goal} ${trainer.name}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
+                    { text: `✅ Отправлено ${goalRus} ${trainer?.name}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
                 ]
             );
             await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);

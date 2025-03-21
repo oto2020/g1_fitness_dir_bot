@@ -122,7 +122,7 @@ class BotHelper {
                     // const phone = `${client.phone}`;
                     const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
                     const photoUrl = client.photo;
-                    const tags = client.tags.map(tag => `#${tag.title}`).join('\n');
+                    const tags = client.tags.map(tag => `# ${tag.title}`).join('\n');
 
                     // let tag = "ХОЧЕТ НА ВПТ";
                     // try {
@@ -140,11 +140,11 @@ class BotHelper {
                     //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
                     // }
 
-                    let divisionText;
-                    if (goal == 'Аква') divisionText = '🏊 ' + goal;
-                    if (goal == 'ГП') divisionText = '🤸🏻‍♀️ ' + goal;
-                    if (goal == 'ТЗ') divisionText = '🏋🏼‍♂️ ' + goal;
-                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n📞 +${phone}\nОтдел: ${divisionText}\nВремя: ${visitTime}\n${comment?.length ? 'Комментарий:\n✍️ ' + comment : ''} \n\nАвтор: ${authorTelegramUserInfo}`;
+                    let divisionText = goal;
+                    if (goal == 'aq') divisionText = '🏊 Аква';
+                    if (goal == 'gp') divisionText = '🤸🏻‍♀️ ГП';
+                    if (goal == 'tz') divisionText = '🏋🏼‍♂️ ТЗ';
+                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n📞 +${phone}\nОтдел: ${divisionText}\nВремя: ${visitTime}\n${comment?.length ? '\nКомментарий:\n✍️ ' + comment : ''} \n\nАвтор: ${authorTelegramUserInfo}`;
                     let fitDirChatId = await this.getFitDirChatId(prisma);
                     // console.log(fitDirChatId); 
                     // return;
@@ -156,7 +156,11 @@ class BotHelper {
                     const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, fitDirChatId, photoUrl, captionText);
 
                     // генерируем клаиатуру с тренерами
-                    let trainersWithGoal = await this.getUsersByGoal(prisma, goal);
+                    let goalRus = goal;
+                    if (goal === 'tz') { goalRus = 'ТЗ'; }
+                    if (goal === 'gp') { goalRus = 'ГП'; }
+                    if (goal === 'aq') { goalRus = 'Аква'; }
+                    let trainersWithGoal = await this.getUsersByGoal(prisma, goalRus);
                     trainersWithGoal = trainersWithGoal.map(el => { return { name: el.name, chatId: el.chatId, telegramID: el.telegramID }; });
                     let buttonsPerRow = 3;
                     let inline_keyboard = [];
@@ -164,7 +168,7 @@ class BotHelper {
                     trainersWithGoal.forEach((trainer, index) => {
                         row.push({
                             text: trainer.name,
-                            callback_data: ['vs', goal, messageId, phone, trainer.chatId].join('@')
+                            callback_data: ['vs', goal, messageId, phone, trainer.chatId, visitTime].join('@')
                         });
 
                         if (row.length === buttonsPerRow || index === trainersWithGoal.length - 1) {
@@ -175,7 +179,7 @@ class BotHelper {
 
                     // Добавляем кнопку закрытия в отдельный ряд
                     inline_keyboard.push([
-                        { text: "✖️ Закрыть", callback_data: ['vs', 'cancel', messageId, phone].join('@') }
+                        { text: "🗑 Удалить заявку", callback_data: ['vs', 'delete', messageId, phone, goal, visitTime].join('@') }
                     ]);
 
                     await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
@@ -331,7 +335,7 @@ class BotHelper {
         function getMembershipServices(el) {
             return (el.type === 'membership' && el.service_list && el.service_list.length > 0)
                 ? 'Не использовано:\n' + el.service_list
-                    .map(ss => `➖ ${ss.title}\nОстаток: ${ss.count} (${ss.count_reserves})`).join('\n') + '\n'
+                    .map(ss => `🔥 ${ss.title}\nОстаток: ${ss.count}, резерв: ${ss.count_reserves}`).join('\n') + '\n'
                 : '';
         }
 
