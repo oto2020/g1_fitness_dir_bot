@@ -673,10 +673,8 @@ bot.on('callback_query', async (query) => {
             bot.sendMessage(chatId, `Закрыта анкета клиента ${clientPhone}`);
         } else {
             let goal = queryValue;
-            let goalRus = goal;
-            if (goal === 'tz') { goalRus = 'ТЗ'; }
-            if (goal === 'gp') { goalRus = 'ГП'; }
-            if (goal === 'aq') { goalRus = 'Аква'; }
+            let goalRus = BotHelper.goalRus(goal);
+            let goalRusWithEmojii = BotHelper.goalRusWithEmojii(goal);
 
             if (queryValue) {
                 let visitTime;
@@ -714,7 +712,7 @@ bot.on('callback_query', async (query) => {
                         let inline_keyboard = [];
                         inline_keyboard.push(
                             [
-                                { text: `✅ Отправлен в ${goalRus}, ${visitTime}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
+                                { text: `✅ Отправлен в ${goalRusWithEmojii} на ${visitTime}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
                             ]
                         );
                         await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
@@ -743,13 +741,11 @@ bot.on('callback_query', async (query) => {
 
         // ФитДир нажал "Удалить заявку"
         if (goal === 'delete') {
-            // await BotHelper.deleteMessage(bot, chatId, messageId);
-            bot.sendMessage(chatId, `Удалена анкета клиента \n+${phone} ${comment}\nПодразделение: ${param5}, Время: ${visitTime}`);
+            let goalRusWithEmojii = BotHelper.goalRusWithEmojii(param5);
+            await BotHelper.deleteMessage(bot, chatId, messageId);
+            bot.sendMessage(chatId, `Удалена анкета клиента \n+${phone} ${comment}\nПодразделение: ${goalRusWithEmojii}, Время: ${visitTime}`);
         } else {
-            let goalRus = goal;
-            if (goal === 'tz') { goalRus = 'ТЗ'; }
-            if (goal === 'gp') { goalRus = 'ГП'; }
-            if (goal === 'aq') { goalRus = 'Аква'; }
+            let goalRus = BotHelper.goalRus(goal);
             let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
             let inline_keyboard = [];
             inline_keyboard.push(
@@ -919,16 +915,7 @@ bot.on('callback_query', async (query) => {
 
     // Тренер выбирает подразделение: "ТЗ" "ГП" "Аква" "Завершить регистрацию"
     if (queryTheme === 'vpt_list') {
-        let selection = '';
-        if (queryValue === 'tz') {
-            selection = 'ТЗ';
-        }
-        if (queryValue === 'gp') {
-            selection = 'ГП';
-        }
-        if (queryValue === 'aq') {
-            selection = 'Аква';
-        }
+        let selection = BotHelper.goalRus(queryValue);
 
         if (!userSteps[chatId]) {
             userSteps[chatId] = {};

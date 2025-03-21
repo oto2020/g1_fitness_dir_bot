@@ -140,11 +140,8 @@ class BotHelper {
                     //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
                     // }
 
-                    let divisionText = goal;
-                    if (goal == 'aq') divisionText = '🏊 Аква';
-                    if (goal == 'gp') divisionText = '🤸🏻‍♀️ ГП';
-                    if (goal == 'tz') divisionText = '🏋🏼‍♂️ ТЗ';
-                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n📞 +${phone}\nОтдел: ${divisionText}\nВремя: ${visitTime}\n${comment?.length ? '\nКомментарий:\n✍️ ' + comment : ''} \n\nАвтор: ${authorTelegramUserInfo}`;
+                    let goalRusWithEmojii = this.goalRusWithEmojii(goal);
+                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n📞 +${phone}\nОтдел: ${goalRusWithEmojii}\nВремя: ${visitTime}\n${comment?.length ? '\nКомментарий:\n✍️ ' + comment : ''} \n\nАвтор: ${authorTelegramUserInfo}`;
                     let fitDirChatId = await this.getFitDirChatId(prisma);
                     // console.log(fitDirChatId); 
                     // return;
@@ -156,10 +153,7 @@ class BotHelper {
                     const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, fitDirChatId, photoUrl, captionText);
 
                     // генерируем клаиатуру с тренерами
-                    let goalRus = goal;
-                    if (goal === 'tz') { goalRus = 'ТЗ'; }
-                    if (goal === 'gp') { goalRus = 'ГП'; }
-                    if (goal === 'aq') { goalRus = 'Аква'; }
+                    let goalRus = this.goalRus(goal);
                     let trainersWithGoal = await this.getUsersByGoal(prisma, goalRus);
                     trainersWithGoal = trainersWithGoal.map(el => { return { name: el.name, chatId: el.chatId, telegramID: el.telegramID }; });
                     let buttonsPerRow = 3;
@@ -225,28 +219,38 @@ class BotHelper {
     // Функция отправки изображения с captionText в чат cahtId и возвращает fileId (фото телеграм)  и messageId (id сообщения в чате)
     static async sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText) {
         try {
-            const headers = {
-                'Authorization': process.env.AUTHORIZATION,
-                'apikey': process.env.API_KEY
-            };
-            const response = await axios.get(photoUrl, {
-                headers,
-                responseType: 'arraybuffer'
-            });
-
-            const filePath = path.join(__dirname, 'photo.jpg');
-            fs.writeFileSync(filePath, response.data);
-
+            let filePath;
+    
+            if (!photoUrl) {
+                // Если URL пустой, используем локальный файл g1.jpeg
+                filePath = path.join(__dirname, 'g1.jpeg');
+            } else {
+                const headers = {
+                    'Authorization': process.env.AUTHORIZATION,
+                    'apikey': process.env.API_KEY
+                };
+                const response = await axios.get(photoUrl, {
+                    headers,
+                    responseType: 'arraybuffer'
+                });
+    
+                filePath = path.join(__dirname, 'photo.jpg');
+                fs.writeFileSync(filePath, response.data);
+            }
+    
             const sentMessage = await bot.sendPhoto(chatId, filePath, {
                 caption: captionText,
                 parse_mode: 'Markdown'
             });
-
+    
             const messageId = sentMessage.message_id;
             const fileId = sentMessage.photo[sentMessage.photo.length - 1].file_id;
-
-            fs.unlinkSync(filePath);
-
+    
+            // Удаляем временный файл, если загружали его
+            if (photoUrl) {
+                fs.unlinkSync(filePath);
+            }
+    
             return { fileId, messageId };
         } catch (error) {
             console.error('Ошибка загрузки фото:', error);
@@ -254,6 +258,7 @@ class BotHelper {
             return null;
         }
     }
+    
 
     // Вспомогательные фукнции по работе с уже созданными сообщениями по chatId и messageId
     static async deleteMessage(bot, chatId, messageId) {
@@ -506,6 +511,23 @@ class BotHelper {
     static getQueryTelegramUserInfo (query) {
         return '@' + (query?.from?.username || 'НетНикнейма') + ' (' + (query?.from?.first_name || 'НетИмени ') + ' ' + (query?.from?.last_name || 'НетФамилии') + ')'; // Никнейм (может отсутствовать)
     }
+
+    static goalRus(goal) {
+        let goalRus = goal;
+        if (goal === 'tz') { goalRus = 'ТЗ'; }
+        if (goal === 'gp') { goalRus = 'ГП'; }
+        if (goal === 'aq') { goalRus = 'Аква'; }
+        return goalRus;
+    }
+
+    static goalRusWithEmojii(goal) {
+        let goalRus = goal;
+        if (goal === 'tz') { goalRus = '🏋🏼‍♂️ ТЗ'; }
+        if (goal === 'gp') { goalRus = '🤸🏻‍♀️ ГП'; }
+        if (goal === 'aq') { goalRus = '🏊 Аква'; }
+        return goalRus;
+    }
+
 }
 
 module.exports = BotHelper;
