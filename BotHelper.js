@@ -98,7 +98,7 @@ class BotHelper {
             return;
         }
 
-        // отправляем сообщение с фото, пока без кнопок
+        // отправляем ФИТДИРУ сообщение с фото, пока без кнопок
         let goalRusWithEmojii = this.goalRusWithEmojii(goal);
         let requestVptComment = `${tag}\n\n${anketa}\n\nКомментарий к заявке:\n✍️  ${comment}`;
         let captionText = `${requestVptComment}\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\nАвтор: ${authorTelegramUserInfo}`;
@@ -120,7 +120,9 @@ class BotHelper {
         trainersWithGoal.forEach((trainer, index) => {
             row.push({
                 text: trainer.name,
-                callback_data: ['vs', goal, messageId, phoneWithoutPlus, trainer.chatId, visitTime].join('@')
+                //messageId чтобы перерисовать кнопки типа отправлено тренеру Ващенко
+                //trainer.chatId чтобы было понятно какому тренеру в какой чат слать анкету с клиентом
+                callback_data: ['vs', goal, messageId, trainer.chatId, vptRequest.id].join('@')
             });
 
             if (row.length === buttonsPerRow || index === trainersWithGoal.length - 1) {
@@ -148,7 +150,7 @@ class BotHelper {
     //  В момент создания заявки: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для создателя заявки ТЗ ГП Аква
     static async anketaByPhoneToTrainerAddTag(phone, bot, chatId, comment, goal, visitTime) {
         console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
-        return;
+        // return;
         // Генерация подписи
         const sign = crypto.createHash('sha256')
             .update('phone:' + phone + ";key:" + process.env.SECRET_KEY)

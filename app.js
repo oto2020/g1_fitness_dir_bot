@@ -748,20 +748,29 @@ bot.on('callback_query', async (query) => {
 
     // ФитДир выбрал тренера vpt request send
     if (queryTheme === 'vs') {
-        // ['vs', goal, messageId, phone, trainerChatId].join('@') 
+        // console.log(['vs', goal, messageId, trainer.chatId, vptRequest.id].join('@'));
+
+        // инфа из query
         let goal = queryValue;
         let messageId = queryId;
-        let phone = param4;
-        let trainerChatId = param5;
-        let comment = comments[phone];
-        let visitTime = param6;
-        // const keyboard = query.message.reply_markup?.inline_keyboard;
-        // param4 = '+' + BotHelper.parseMessage(param4).phone;
+        let trainerChatId = param4;
+        let vptRequestId = param5;
 
+        // инфа из БД
+        let vptRequest = await BotHelper.getVPTRequestById(vptRequestId);
+        let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
+
+        // используемые переменные
+        let comment = vptRequest.comment;
+        let goalRus = vptRequest.goal;
+        let visitTime = vptRequest.visitTime;
+        let phoneWithoutPlus = BotHelper.parseMessage(vptRequest.phoneNumber)?.phone;
+
+        // ТЕСТ УДАЛЕНИЯ
+        return;
 
         console.log(queryTheme, goal, messageId, phone, trainerChatId, comment, visitTime);
 
-        let vptRequestId = param5;
 
         // ФитДир нажал "Удалить заявку"
         if (goal === 'delete') {
@@ -775,7 +784,6 @@ bot.on('callback_query', async (query) => {
             bot.sendMessage(chatId, `--- Удалена анкета--- \n\n${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
         } else {
             let goalRus = BotHelper.goalRus(goal);
-            let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
 
             let newTag = BotHelper.getTag(trainer.name, goalRus);
             console.log(`Обновляю данные заявки #${vptRequestId}, новый userId: ${trainer.id}, новый тег: ${newTag}`);
@@ -787,9 +795,7 @@ bot.on('callback_query', async (query) => {
 
 
             // ПО НОМЕРУ ТЕЛЕФОНА ОБРАЩАЕМСЯ К API
-            let onlyComment = BotHelper.extractComment(comment); // костылем обрезаем текст, выбирая только чистый комментарий
-            console.log(onlyComment);
-            await BotHelper.anketaByPhoneToTrainerAddTag(phone, bot, chatId, onlyComment, goal, visitTime);
+            await BotHelper.anketaByPhoneToTrainerAddTag(phone, bot, chatId, comment, goal, visitTime);
 
 
             // ТАМ ЖЕ ВНУТРИ отправляем сообщение тренеру с кнопками.
