@@ -565,7 +565,10 @@ bot.on('contact', async (msg) => {
 });
 
 
-const comments = {}; // Хранение в памяти комментариев по ключу номера телефона
+// Хранение в памяти по ключу номера телефона
+const anketas = {}; // текст анкеты
+const comments = {}; // комментарий пользователя
+const tags = {}; // теги клиента
 const photoIds = {}; // Хранение в памяти id файла фото тг по ключу номера телефона
 
 // Обработка ввода текста
@@ -583,9 +586,13 @@ bot.on('message', async (msg) => {
     if (parsedMessage?.phone) {
         const { phone, comment } = parsedMessage;
         console.log(`phone: ${phone}, comment: ${comment}`);
-        let anketa = await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment);
-        comments[phone] = anketa?.requestVptComment;
-        photoIds[phone] = anketa?.fileId;
+        let anketaObj = await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment);
+        
+        // Эти данные будут далее использованы после выбора подразделения/времени в анкете передаваемой фитдиру в vc goal и vc time
+        anketas[phone] = anketaObj?.anketa
+        comments[phone] = anketaObj?.comment;
+        tags[phone] = anketaObj?.tags;
+        photoIds[phone] = anketaObj?.fileId;
         return;
     }
 
@@ -688,30 +695,33 @@ bot.on('callback_query', async (query) => {
                 if (visitTime) {
                     try {
                         // Никнейми и ФИО того, кто нажал на кнопку
-                        const authorTelegramUserInfo = BotHelper.getQueryTelegramUserInfo(query); 
+                        const authorTelegramUserInfo = BotHelper.getQueryTelegramUserInfo(query);
                         let phoneWithoutPlus = param4;
-                        // из массива получаем расширенный комментарий и фото айди
-                        let requestVptComment = comments[phoneWithoutPlus] || '';
-                        let requestVptPhotoId = photoIds[phoneWithoutPlus] || '';
+
+                        // из массива получаем данные
+                        let anketa = anketas[phoneWithoutPlus] || '';
+                        let comment = comments[phoneWithoutPlus] || '';
+                        let tag = tags[phoneWithoutPlus] || '';
+                        let photoId = photoIds[phoneWithoutPlus] || '';
 
                         // Записываем заявку в БД
+                        let requestVptComment = `${anketa}\n\nКомментарий к заявке:\n✍️  ${comment}`;
                         let trainerTelegramID = null;
                         try {
                             // пробуем создать если не существует ScreenshotUser 
                             const telegramID = query.from.id;  // Уникальный Telegram ID
-                             // Создаем и/или получаем автора заявки
+                            // Создаем и/или получаем автора заявки
                             let screenshotUser = await BotHelper.checkOrCreateScreenshotUser(prisma, telegramID, authorTelegramUserInfo);
                             // Телеграм ИД автора заявки
                             let authorTelegramID = screenshotUser.uniqueId;
-                            let photoUrl = ''; // пока что пустой. мы не знаем его, пока не отправим анкету фитдиру
-                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, requestVptPhotoId, requestVptComment, goalRus, '');
-                            
-                            console.log(`----\n${requestVptComment}\n----\nЦель: ${goal} \nФото: ${requestVptPhotoId}\n- Направляю эту анкету ФитДиру`);
+                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoId, requestVptComment, goalRus, '');
 
-                            await BotHelper.anketaTrainerChoosingToFitDir(bot, prisma, requestVptComment, requestVptPhotoId, goal, visitTime, authorTelegramUserInfo, phoneWithoutPlus, vptRequest);
+                            console.log(`----\n${requestVptComment}\n----\nЦель: ${goal} \nФото: ${photoId}\n- Направляю эту анкету ФитДиру`);
+
+                            await BotHelper.anketaTrainerChoosingToFitDir(bot, prisma, anketa, comment, tag, photoId, goal, visitTime, authorTelegramUserInfo, phoneWithoutPlus, vptRequest);
                             // // Отправляем ФитДиру анкету клиента с кнопками выбора тренера
                             // photoUrl = await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal, visitTime, requestVptComment, authorTelegramUserInfo, vptRequest);
-                            
+
                             // // Обновляем у уже созданной заявки на ВПТ photoUrl
                             // await BotHelper.updateVPTRequestPhoto(prisma, vptRequest.id, photoUrl);
                         } catch (e) {
@@ -751,9 +761,10 @@ bot.on('callback_query', async (query) => {
 
         console.log(queryTheme, goal, messageId, phone, trainerChatId, comment, visitTime);
 
+        let vptRequestId = param5;
+
         // ФитДир нажал "Удалить заявку"
         if (goal === 'delete') {
-            let vptRequestId = param5;
             let vptRequest = await BotHelper.getVPTRequestById(prisma, vptRequestId);
             if (!vptRequest) {
                 bot.sendMessage(chatId, `Не найдена заявка #${vptRequestId}`);
@@ -766,15 +777,53 @@ bot.on('callback_query', async (query) => {
             let goalRus = BotHelper.goalRus(goal);
             let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
 
-            console.log(`Обновляю данные заявки #${vptRequestId}, новый userId: ${trainer.id}`);
+            let newTag = BotHelper.getTag(trainer.name, goalRus);
+            console.log(`Обновляю данные заявки #${vptRequestId}, новый userId: ${trainer.id}, новый тег: ${newTag}`);
+            // отправить тренеру анкету с запросом по апи с комментарием без тегов
+
+
             // console.log(`Отправляю сообщение тренеру в ТГ и получаю messageId`);
             // console.log(`Обновляю данные заявки #${vptRequestId}, новый tgChatMessageId: ${trainerChatId}@${trainerMessageId}`);
+
+
+            // ПО НОМЕРУ ТЕЛЕФОНА ОБРАЩАЕМСЯ К API
+            let onlyComment = BotHelper.extractComment(comment); // костылем обрезаем текст, выбирая только чистый комментарий
+            console.log(onlyComment);
+            await BotHelper.anketaByPhoneToTrainerAddTag(phone, bot, chatId, onlyComment, goal, visitTime);
+
+
+            // ТАМ ЖЕ ВНУТРИ отправляем сообщение тренеру с кнопками.
+            // ПОЛУЧАЕМ FILE ID и MESSAGE ID
+            // MESSAGE ID и CHAT ID используем для обновления поля tgChatMessageId в VptRequest
+
+
+            // // Шаг 2: Формируем список кнопок
+            // const row1 = [
+            //     {
+            //         text: '✅ Беру',
+            //         callback_data: [`vpt_status`, `accepted`, vptRequestId].join('@')
+            //     },
+            //     {
+            //         text: '❌ Не беру',
+            //         callback_data: [`vpt_status`, `rejected`, vptRequestId].join('@')
+            //     }
+            // ];
+            // let inline_keyboard_for_trainer = [];
+            // inline_keyboard_for_trainer.push(row1);
+
+
+            // const sentMessage = await bot.sendPhoto(trainerChatId, requestVptPhotoId, {
+            //     caption: captionText,
+            //     parse_mode: 'Markdown',
+            //     inline_keyboard: inline_keyboard_for_trainer
+            // });
+            // let messageId = sentMessage.message_id; // Возвращаем ID отправленного сообщения
 
 
             let inline_keyboard = [];
             inline_keyboard.push(
                 [
-                    { text: `✅ Отправлено ${goalRus} ${trainer?.name}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
+                    { text: `✅ Отправлено ${newTag}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
                 ]
             );
             await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);

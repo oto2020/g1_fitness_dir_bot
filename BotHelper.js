@@ -37,7 +37,6 @@ class BotHelper {
                     // const phone = `${client.phone}`;
                     const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
                     const photoUrl = client.photo;
-                    const tags = client.tags.map(tag => `# ${tag.title}`).join('\n');
 
                     // let tag = "ХОЧЕТ НА ВПТ";
                     // try {
@@ -55,7 +54,10 @@ class BotHelper {
                     //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
                     // }
 
-                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n+${phone}\n\nВаш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
+                    // comment уже есть
+                    let tags = client.tags.map(tag => `# ${tag.title}`).join('\n');
+                    let anketa = `${ticketsText}\n\n${name} (${birthDate})\n+${phone}`;
+                    let captionText = `${tags}\n\n${anketa}\n\nВаш комментарий к заявке на ВПТ:\n✍️  ${comment}\n\n✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
                     const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText);
 
                     let inline_keyboard = [
@@ -71,8 +73,7 @@ class BotHelper {
                     await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
 
                     // Будет сохранено в БД
-                    let requestVptComment = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n+${phone}\n\nКомментарий к заявке:\n✍️ ${comment}`;
-                    return { requestVptComment, fileId };
+                    return { comment, tags, anketa, fileId };
                 } else {
                     bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
                 }
@@ -86,7 +87,8 @@ class BotHelper {
 
     }
 
-    static async anketaTrainerChoosingToFitDir(bot, prisma, requestVptComment, requestVptPhotoId, goal, visitTime, authorTelegramUserInfo, phoneWithoutPlus, vptRequest) {
+    // Передаем анкету фитнес-директору
+    static async anketaTrainerChoosingToFitDir(bot, prisma, anketa, comment, tag, requestVptPhotoId, goal, visitTime, authorTelegramUserInfo, phoneWithoutPlus, vptRequest) {
 
         console.log('Ща отправим фото и мегакоммент с кнопками выбора тренеров');
 
@@ -98,6 +100,7 @@ class BotHelper {
 
         // отправляем сообщение с фото, пока без кнопок
         let goalRusWithEmojii = this.goalRusWithEmojii(goal);
+        let requestVptComment = `${tag}\n\n${anketa}\n\nКомментарий к заявке:\n✍️  ${comment}`;
         let captionText = `${requestVptComment}\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\nАвтор: ${authorTelegramUserInfo}`;
         const sentMessage = await bot.sendPhoto(fitDirChatId, requestVptPhotoId, {
             caption: captionText,
@@ -133,6 +136,95 @@ class BotHelper {
 
         await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
         console.log('keyboard with trainers updated!');
+
+    }
+
+    static extractComment(text) {
+        if (!text) return '';
+
+        const match = text.match(/Комментарий к заявке:\n([\s\S]*)/);
+        return match ? match[1].trim() : '';
+    }
+    //  В момент создания заявки: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для создателя заявки ТЗ ГП Аква
+    static async anketaByPhoneToTrainerAddTag(phone, bot, chatId, comment, goal, visitTime) {
+        console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
+        return;
+        // Генерация подписи
+        const sign = crypto.createHash('sha256')
+            .update('phone:' + phone + ";key:" + process.env.SECRET_KEY)
+            .digest('hex');
+
+        const passTokenUrl = `https://${process.env.API_HOSTNAME}:${process.env.API_PORT}${process.env.API_PATH}/pass_token/?phone=${phone}&sign=${sign}`;
+
+        try {
+            const passTokenResponse = await axios.get(passTokenUrl, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    apikey: process.env.API_KEY,
+                    Authorization: process.env.AUTHORIZATION
+                }
+            });
+
+            if (passTokenResponse.data.result && passTokenResponse.data.data.pass_token) {
+                const passToken = passTokenResponse.data.data.pass_token;
+
+                let ticketsText = await this.getTicketsText(passToken);
+
+                let clientResponse = await this.getClientResponse(passToken);
+
+                if (clientResponse.data.result) {
+                    const client = clientResponse.data.data;
+                    const id = client.id;
+                    const name = `${client.name} ${client.last_name}`;
+                    // const phone = `${client.phone}`;
+                    const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
+                    const photoUrl = client.photo;
+                    // const tags = client.tags.map(tag => `# ${tag.title}`).join('\n');
+
+                    // let tag = "ХОЧЕТ НА ВПТ";
+                    // try {
+                    //   await this.addTag(passToken, id, tag);
+                    //   await bot.sendMessage(chatId, `Установлен тег: "${tag}"`);
+                    // } catch (e) {
+                    //   await bot.sendMessage(chatId, `Не удалось установить тег "${tag}"`);
+                    // }
+
+                    // try {
+                    //   await this.deleteTag(passToken, id, tag);
+                    //   await bot.sendMessage(chatId, `Удален тег "${tag}"`);
+                    // } catch (e) {
+                    //   console.error(e);
+                    //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
+                    // }
+
+                    let goalRusWithEmojii = this.goalRusWithEmojii(goal);
+                    let captionText = `${ticketsText}\n\n${name} (${birthDate})\n+${phone}\n\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\n\nКомментарий к заявке:\n${comment}\n`;
+                    const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText);
+
+                    // let inline_keyboard = [
+                    //     [
+                    //         { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc_goal', 'tz', messageId, phone].join('@') },
+                    //         { text: "ГП 🤸🏻‍♀️", callback_data: ['vc_goal', 'gp', messageId, phone].join('@') },
+                    //         { text: "Аква 🏊", callback_data: ['vc_goal', 'aq', messageId, phone].join('@') }
+                    //     ],
+                    //     [
+                    //         { text: "✖️ Закрыть", callback_data: ['vc_goal', 'cancel', messageId, phone].join('@') }
+                    //     ]
+                    // ];
+                    // await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
+
+                    // Будет сохранено в БД
+                    return messageId;
+                } else {
+                    bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
+                }
+            } else {
+                bot.sendMessage(chatId, 'Ошибка при получении токена, попробуйте позже.');
+            }
+        } catch (error) {
+            bot.sendMessage(chatId, 'Ошибка соединения с сервером.');
+            console.error(error);
+        }
 
     }
 
@@ -523,6 +615,17 @@ class BotHelper {
         if (goal === 'gp') { goalRus = '🤸🏻‍♀️ ГП'; }
         if (goal === 'aq') { goalRus = '🏊 Аква'; }
         return goalRus;
+    }
+
+    static getTag(tarinerName, goal) {
+        if (!tarinerName) return '';
+        const parts = tarinerName.trim().split(/\s+/);
+        if (parts.length === 0) return '';
+
+        const lastName = parts[0]; // Первая часть - фамилия
+        const initials = parts.slice(1).map(name => name[0] + '.').join(''); // Первые буквы остальных имен
+
+        return `ВПТ ${goal} ${lastName} ${initials}`;
     }
 
 }
