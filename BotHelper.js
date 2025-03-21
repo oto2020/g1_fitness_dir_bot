@@ -70,11 +70,9 @@ class BotHelper {
                     ];
                     await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
 
-                    if (fileId) {
-                        console.log(`Photo file_id: ${fileId}`);
-                    }
-                    // let messageForTrainer = `Имя: ${name}\nТелефон: +${phone}\nДата рождения: ${birthDate}\n\nБилеты:\n${ticketsText}`;
-                    // return { fileId, messageForTrainer };
+                    // Будет сохранено в БД
+                    let requestVptComment = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n+${phone}\n\nКомментарий к заявке:\n✍️ ${comment}`;
+                    return { requestVptComment, fileId };
                 } else {
                     bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
                 }
@@ -88,113 +86,55 @@ class BotHelper {
 
     }
 
+    static async anketaTrainerChoosingToFitDir(bot, prisma, requestVptComment, requestVptPhotoId, goal, visitTime, authorTelegramUserInfo, phoneWithoutPlus, vptRequest) {
 
-    // В момент выбора тренера: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для выбора тренера
-    static async anketaByPhoneTrainerChoosingToFitDir(phone, bot, chatId, prisma, goal, visitTime, comment, authorTelegramUserInfo, vptRequest) {
-        console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
-        // Генерация подписи
-        const sign = crypto.createHash('sha256')
-            .update('phone:' + phone + ";key:" + process.env.SECRET_KEY)
-            .digest('hex');
+        console.log('Ща отправим фото и мегакоммент с кнопками выбора тренеров');
 
-        const passTokenUrl = `https://${process.env.API_HOSTNAME}:${process.env.API_PORT}${process.env.API_PATH}/pass_token/?phone=${phone}&sign=${sign}`;
+        let fitDirChatId = await this.getFitDirChatId(prisma);
+        if (!fitDirChatId) {
+            bot.sendMessage('ФитДир не найден');
+            return;
+        }
 
-        try {
-            const passTokenResponse = await axios.get(passTokenUrl, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    apikey: process.env.API_KEY,
-                    Authorization: process.env.AUTHORIZATION
-                }
+        // отправляем сообщение с фото, пока без кнопок
+        let goalRusWithEmojii = this.goalRusWithEmojii(goal);
+        let captionText = `${requestVptComment}\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\nАвтор: ${authorTelegramUserInfo}`;
+        const sentMessage = await bot.sendPhoto(fitDirChatId, requestVptPhotoId, {
+            caption: captionText,
+            parse_mode: 'Markdown'
+        });
+        let messageId = sentMessage.message_id; // Возвращаем ID отправленного сообщения
+
+
+
+        // генерируем клаиатуру с тренерами
+        let goalRus = this.goalRus(goal);
+        let trainersWithGoal = await this.getUsersByGoal(prisma, goalRus);
+        trainersWithGoal = trainersWithGoal.map(el => { return { name: el.name, chatId: el.chatId, telegramID: el.telegramID }; });
+        let buttonsPerRow = 3;
+        let inline_keyboard = [];
+        let row = [];
+        trainersWithGoal.forEach((trainer, index) => {
+            row.push({
+                text: trainer.name,
+                callback_data: ['vs', goal, messageId, phoneWithoutPlus, trainer.chatId, visitTime].join('@')
             });
 
-            if (passTokenResponse.data.result && passTokenResponse.data.data.pass_token) {
-                const passToken = passTokenResponse.data.data.pass_token;
-
-                let ticketsText = await this.getTicketsText(passToken);
-
-                let clientResponse = await this.getClientResponse(passToken);
-
-                if (clientResponse.data.result) {
-                    const client = clientResponse.data.data;
-                    const id = client.id;
-                    const name = `${client.name} ${client.last_name}`;
-                    // const phone = `${client.phone}`;
-                    const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
-                    const photoUrl = client.photo;
-                    const tags = client.tags.map(tag => `# ${tag.title}`).join('\n');
-
-                    // let tag = "ХОЧЕТ НА ВПТ";
-                    // try {
-                    //   await this.addTag(passToken, id, tag);
-                    //   await bot.sendMessage(chatId, `Установлен тег: "${tag}"`);
-                    // } catch (e) {
-                    //   await bot.sendMessage(chatId, `Не удалось установить тег "${tag}"`);
-                    // }
-
-                    // try {
-                    //   await this.deleteTag(passToken, id, tag);
-                    //   await bot.sendMessage(chatId, `Удален тег "${tag}"`);
-                    // } catch (e) {
-                    //   console.error(e);
-                    //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
-                    // }
-
-                    let goalRusWithEmojii = this.goalRusWithEmojii(goal);
-                    let captionText = `${ticketsText}\n${tags}\n\n${name} (${birthDate})\n📞 +${phone}\nОтдел: ${goalRusWithEmojii}\nВремя: ${visitTime}\n${comment?.length ? '\nКомментарий:\n✍️ ' + comment : ''} \n\nАвтор: ${authorTelegramUserInfo}`;
-                    let fitDirChatId = await this.getFitDirChatId(prisma);
-                    // console.log(fitDirChatId); 
-                    // return;
-                    if (!fitDirChatId) {
-                        bot.sendMessage('ФитДир не найден');
-                        return;
-                    }
-
-                    const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, fitDirChatId, photoUrl, captionText);
-
-                    // генерируем клаиатуру с тренерами
-                    let goalRus = this.goalRus(goal);
-                    let trainersWithGoal = await this.getUsersByGoal(prisma, goalRus);
-                    trainersWithGoal = trainersWithGoal.map(el => { return { name: el.name, chatId: el.chatId, telegramID: el.telegramID }; });
-                    let buttonsPerRow = 3;
-                    let inline_keyboard = [];
-                    let row = [];
-                    trainersWithGoal.forEach((trainer, index) => {
-                        row.push({
-                            text: trainer.name,
-                            callback_data: ['vs', goal, messageId, phone, trainer.chatId, visitTime].join('@')
-                        });
-
-                        if (row.length === buttonsPerRow || index === trainersWithGoal.length - 1) {
-                            inline_keyboard.push(row);
-                            row = [];
-                        }
-                    });
-
-                    // Добавляем кнопку закрытия в отдельный ряд
-                    inline_keyboard.push([
-                        { text: "🗑 Удалить заявку", callback_data: ['vs', 'delete', messageId, phone, vptRequest.id].join('@') }
-                    ]);
-
-                    await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
-                    console.log('keyboard with trainers updated!');
-
-                    return fileId ? fileId : null;
-                    // let messageForTrainer = `Имя: ${name}\nТелефон: +${phone}\nДата рождения: ${birthDate}\n\nБилеты:\n${ticketsText}`;
-                    // return { fileId, messageForTrainer };
-                } else {
-                    bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
-                }
-            } else {
-                bot.sendMessage(chatId, 'Ошибка при получении токена, попробуйте позже.');
+            if (row.length === buttonsPerRow || index === trainersWithGoal.length - 1) {
+                inline_keyboard.push(row);
+                row = [];
             }
-        } catch (error) {
-            bot.sendMessage(chatId, 'Ошибка соединения с сервером.');
-            console.error(error);
-        }
+        });
+
+        // Добавляем кнопку закрытия в отдельный ряд
+        inline_keyboard.push([
+            { text: "🗑 Удалить заявку", callback_data: ['vs', 'delete', messageId, phoneWithoutPlus, vptRequest.id].join('@') }
+        ]);
+
+        await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
+        console.log('keyboard with trainers updated!');
 
     }
-
 
     // Функция обновления текста кнопки
     static async updateButtonText(bot, chatId, messageId, inlineKeyboard, targetCallbackData, newText) {

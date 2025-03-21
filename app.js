@@ -566,6 +566,7 @@ bot.on('contact', async (msg) => {
 
 
 const comments = {}; // Хранение в памяти комментариев по ключу номера телефона
+const photoIds = {}; // Хранение в памяти id файла фото тг по ключу номера телефона
 
 // Обработка ввода текста
 bot.on('message', async (msg) => {
@@ -582,8 +583,9 @@ bot.on('message', async (msg) => {
     if (parsedMessage?.phone) {
         const { phone, comment } = parsedMessage;
         console.log(`phone: ${phone}, comment: ${comment}`);
-        comments[phone] = comment;
-        await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment);
+        let anketa = await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment);
+        comments[phone] = anketa?.requestVptComment;
+        photoIds[phone] = anketa?.fileId;
         return;
     }
 
@@ -688,7 +690,9 @@ bot.on('callback_query', async (query) => {
                         // Никнейми и ФИО того, кто нажал на кнопку
                         const authorTelegramUserInfo = BotHelper.getQueryTelegramUserInfo(query); 
                         let phoneWithoutPlus = param4;
-                        let comment = comments[phoneWithoutPlus] || '';
+                        // из массива получаем расширенный комментарий и фото айди
+                        let requestVptComment = comments[phoneWithoutPlus] || '';
+                        let requestVptPhotoId = photoIds[phoneWithoutPlus] || '';
 
                         // Записываем заявку в БД
                         let trainerTelegramID = null;
@@ -700,13 +704,16 @@ bot.on('callback_query', async (query) => {
                             // Телеграм ИД автора заявки
                             let authorTelegramID = screenshotUser.uniqueId;
                             let photoUrl = ''; // пока что пустой. мы не знаем его, пока не отправим анкету фитдиру
-                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoUrl, comment, goalRus, '');
+                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, requestVptPhotoId, requestVptComment, goalRus, '');
                             
-                            // Отправляем ФитДиру анкету клиента с кнопками выбора тренера
-                            photoUrl = await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal, visitTime, comment, authorTelegramUserInfo, vptRequest);
+                            console.log(`----\n${requestVptComment}\n----\nЦель: ${goal} \nФото: ${requestVptPhotoId}\n- Направляю эту анкету ФитДиру`);
+
+                            await BotHelper.anketaTrainerChoosingToFitDir(bot, prisma, requestVptComment, requestVptPhotoId, goal, visitTime, authorTelegramUserInfo, phoneWithoutPlus, vptRequest);
+                            // // Отправляем ФитДиру анкету клиента с кнопками выбора тренера
+                            // photoUrl = await BotHelper.anketaByPhoneTrainerChoosingToFitDir(phoneWithoutPlus, bot, chatId, prisma, goal, visitTime, requestVptComment, authorTelegramUserInfo, vptRequest);
                             
-                            // Обновляем у уже созданной заявки на ВПТ photoUrl
-                            await BotHelper.updateVPTRequestPhoto(prisma, vptRequest.id, photoUrl);
+                            // // Обновляем у уже созданной заявки на ВПТ photoUrl
+                            // await BotHelper.updateVPTRequestPhoto(prisma, vptRequest.id, photoUrl);
                         } catch (e) {
                             bot.sendMessage(chatId, 'Ошибка при сохранении заявки в БД');
                             console.error(e);
@@ -754,10 +761,16 @@ bot.on('callback_query', async (query) => {
             }
             await BotHelper.deleteVPTRequestById(prisma, vptRequestId);
             await BotHelper.deleteMessage(bot, chatId, messageId);
-            bot.sendMessage(chatId, `Удалена анкета клиента \n+${phone} ${vptRequest.comment}\nПодразделение: ${BotHelper.goalRusWithEmojii(vptRequest.goal)}, Время: ${vptRequest.visitTime}`);
+            bot.sendMessage(chatId, `--- Удалена анкета--- \n\n${vptRequest.comment}\\nЦель: ${BotHelper.goalRusWithEmojii(vptRequest.goal)}\nВремя: ${vptRequest.visitTime}`);
         } else {
             let goalRus = BotHelper.goalRus(goal);
             let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
+
+            console.log(`Обновляю данные заявки #${vptRequestId}, новый userId: ${trainer.id}`);
+            // console.log(`Отправляю сообщение тренеру в ТГ и получаю messageId`);
+            // console.log(`Обновляю данные заявки #${vptRequestId}, новый tgChatMessageId: ${trainerChatId}@${trainerMessageId}`);
+
+
             let inline_keyboard = [];
             inline_keyboard.push(
                 [
