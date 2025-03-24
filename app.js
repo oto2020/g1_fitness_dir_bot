@@ -631,10 +631,7 @@ bot.on('message', async (msg) => {
 
 // Обработка кнопок
 bot.on('callback_query', async (query) => {
-    let nowdatetime = new Date().toLocaleString('ru-RU', {
-        timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
-    });
+    let nowdatetime = BotHelper.nowDateTime();
 
     const chatId = query.message.chat.id;
     let user = await getUserByChatId(chatId);
@@ -714,7 +711,7 @@ bot.on('callback_query', async (query) => {
                             let screenshotUser = await BotHelper.checkOrCreateScreenshotUser(prisma, telegramID, authorTelegramUserInfo);
                             // Телеграм ИД автора заявки
                             let authorTelegramID = screenshotUser.uniqueId;
-                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoId, requestVptComment, goalRus, '');
+                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoId, comment, goalRus, '');
 
                             console.log(`----\n${requestVptComment}\n----\nЦель: ${goal} \nФото: ${photoId}\n- Направляю эту анкету ФитДиру`);
 
@@ -751,30 +748,25 @@ bot.on('callback_query', async (query) => {
         // console.log(['vs', goal, messageId, trainer.chatId, vptRequest.id].join('@'));
 
         // инфа из query
-        let goal = queryValue;
+        let isDeleting = queryValue;
         let messageId = queryId;
-        let trainerChatId = param4;
+        let trainerChatId = param4; // 
         let vptRequestId = param5;
 
+        console.log('isDeleting: ' + isDeleting);
+        console.log('messageId: ' + messageId);
+        console.log('trainerChatId: ' + trainerChatId);
+        console.log('vptRequest ID: ' + vptRequestId);
+
         // инфа из БД
-        let vptRequest = await BotHelper.getVPTRequestById(vptRequestId);
+        let vptRequest = await BotHelper.getVPTRequestById(prisma, vptRequestId);
         let trainer = await BotHelper.getUserByChatId(prisma, trainerChatId);
 
-        // используемые переменные
-        let comment = vptRequest.comment;
-        let goalRus = vptRequest.goal;
-        let visitTime = vptRequest.visitTime;
-        let phoneWithoutPlus = BotHelper.parseMessage(vptRequest.phoneNumber)?.phone;
-
-        // ТЕСТ УДАЛЕНИЯ
-        return;
-
-        console.log(queryTheme, goal, messageId, phone, trainerChatId, comment, visitTime);
-
+        // console.log(vptRequest);
+        // console.log(trainer);
 
         // ФитДир нажал "Удалить заявку"
-        if (goal === 'delete') {
-            let vptRequest = await BotHelper.getVPTRequestById(prisma, vptRequestId);
+        if (isDeleting == 'true') {
             if (!vptRequest) {
                 bot.sendMessage(chatId, `Не найдена заявка #${vptRequestId}`);
                 return;
@@ -782,54 +774,16 @@ bot.on('callback_query', async (query) => {
             await BotHelper.deleteVPTRequestById(prisma, vptRequestId);
             await BotHelper.deleteMessage(bot, chatId, messageId);
             bot.sendMessage(chatId, `--- Удалена анкета--- \n\n${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
-        } else {
-            let goalRus = BotHelper.goalRus(goal);
-
-            let newTag = BotHelper.getTag(trainer.name, goalRus);
-            console.log(`Обновляю данные заявки #${vptRequestId}, новый userId: ${trainer.id}, новый тег: ${newTag}`);
-            // отправить тренеру анкету с запросом по апи с комментарием без тегов
-
-
-            // console.log(`Отправляю сообщение тренеру в ТГ и получаю messageId`);
-            // console.log(`Обновляю данные заявки #${vptRequestId}, новый tgChatMessageId: ${trainerChatId}@${trainerMessageId}`);
-
-
-            // ПО НОМЕРУ ТЕЛЕФОНА ОБРАЩАЕМСЯ К API
-            await BotHelper.anketaByPhoneToTrainerAddTag(phone, bot, chatId, comment, goal, visitTime);
-
-
-            // ТАМ ЖЕ ВНУТРИ отправляем сообщение тренеру с кнопками.
-            // ПОЛУЧАЕМ FILE ID и MESSAGE ID
-            // MESSAGE ID и CHAT ID используем для обновления поля tgChatMessageId в VptRequest
-
-
-            // // Шаг 2: Формируем список кнопок
-            // const row1 = [
-            //     {
-            //         text: '✅ Беру',
-            //         callback_data: [`vpt_status`, `accepted`, vptRequestId].join('@')
-            //     },
-            //     {
-            //         text: '❌ Не беру',
-            //         callback_data: [`vpt_status`, `rejected`, vptRequestId].join('@')
-            //     }
-            // ];
-            // let inline_keyboard_for_trainer = [];
-            // inline_keyboard_for_trainer.push(row1);
-
-
-            // const sentMessage = await bot.sendPhoto(trainerChatId, requestVptPhotoId, {
-            //     caption: captionText,
-            //     parse_mode: 'Markdown',
-            //     inline_keyboard: inline_keyboard_for_trainer
-            // });
-            // let messageId = sentMessage.message_id; // Возвращаем ID отправленного сообщения
-
+        } 
+        // ФитДир нажал на тренера
+        else {
+            // Отправляем анкету тренеру, ставим тег в 1С, обновляем заявку в БД
+            await BotHelper.anketaToTrainer(bot, chatId, prisma, trainer, vptRequest);
 
             let inline_keyboard = [];
             inline_keyboard.push(
                 [
-                    { text: `✅ Отправлено ${newTag}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
+                    { text: `✅ Отправлено ${trainer.name}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
                 ]
             );
             await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);

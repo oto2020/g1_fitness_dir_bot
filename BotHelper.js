@@ -4,12 +4,13 @@ const axios = require('axios');
 const path = require('path');
 
 class BotHelper {
-    //  В момент создания заявки: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для создателя заявки ТЗ ГП Аква
-    static async anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment) {
-        console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
-        // Генерация подписи
+
+    // Работает с API, выдает анкету клиента по номеру телефона
+    static async apiClientData(phone) {
+        console.log(`Получаю данные клиента по телефону ${phone}`);
+
         const sign = crypto.createHash('sha256')
-            .update('phone:' + phone + ";key:" + process.env.SECRET_KEY)
+            .update(`phone:${phone};key:${process.env.SECRET_KEY}`)
             .digest('hex');
 
         const passTokenUrl = `https://${process.env.API_HOSTNAME}:${process.env.API_PORT}${process.env.API_PATH}/pass_token/?phone=${phone}&sign=${sign}`;
@@ -23,69 +24,106 @@ class BotHelper {
                 }
             });
 
-            if (passTokenResponse.data.result && passTokenResponse.data.data.pass_token) {
-                const passToken = passTokenResponse.data.data.pass_token;
-
-                let ticketsText = await this.getTicketsText(passToken);
-
-                let clientResponse = await this.getClientResponse(passToken);
-
-                if (clientResponse.data.result) {
-                    const client = clientResponse.data.data;
-                    const id = client.id;
-                    const name = `${client.name} ${client.last_name}`;
-                    // const phone = `${client.phone}`;
-                    const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
-                    const photoUrl = client.photo;
-
-                    // let tag = "ХОЧЕТ НА ВПТ";
-                    // try {
-                    //   await this.addTag(passToken, id, tag);
-                    //   await bot.sendMessage(chatId, `Установлен тег: "${tag}"`);
-                    // } catch (e) {
-                    //   await bot.sendMessage(chatId, `Не удалось установить тег "${tag}"`);
-                    // }
-
-                    // try {
-                    //   await this.deleteTag(passToken, id, tag);
-                    //   await bot.sendMessage(chatId, `Удален тег "${tag}"`);
-                    // } catch (e) {
-                    //   console.error(e);
-                    //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
-                    // }
-
-                    // comment уже есть
-                    let tags = client.tags.map(tag => `# ${tag.title}`).join('\n');
-                    let anketa = `${ticketsText}\n\n${name} (${birthDate})\n+${phone}`;
-                    let captionText = `${tags}\n\n${anketa}\n\nВаш комментарий к заявке на ВПТ:\n✍️  ${comment}\n\n✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
-                    const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText);
-
-                    let inline_keyboard = [
-                        [
-                            { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc_goal', 'tz', messageId, phone].join('@') },
-                            { text: "ГП 🤸🏻‍♀️", callback_data: ['vc_goal', 'gp', messageId, phone].join('@') },
-                            { text: "Аква 🏊", callback_data: ['vc_goal', 'aq', messageId, phone].join('@') }
-                        ],
-                        [
-                            { text: "✖️ Закрыть", callback_data: ['vc_goal', 'cancel', messageId, phone].join('@') }
-                        ]
-                    ];
-                    await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
-
-                    // Будет сохранено в БД
-                    return { comment, tags, anketa, fileId };
-                } else {
-                    bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
-                }
-            } else {
-                bot.sendMessage(chatId, 'Ошибка при получении токена, попробуйте позже.');
+            if (!passTokenResponse.data.result || !passTokenResponse.data.data.pass_token) {
+                throw new Error('Ошибка получения pass_token');
             }
+
+            const passToken = passTokenResponse.data.data.pass_token;
+            const ticketsText = await this.getTicketsText(passToken);
+            const clientResponse = await this.getClientResponse(passToken);
+
+            if (!clientResponse.data.result) {
+                throw new Error('Ошибка получения данных клиента');
+            }
+
+            const client = clientResponse.data.data;
+            return {
+                passToken,
+                ticketsText,
+                client: {
+                    id: client.id,
+                    name: `${client.name} ${client.last_name}`,
+                    birthDate: new Date(client.birthday).toLocaleDateString("ru-RU"),
+                    phone: phone,
+                    photoUrl: client.photo,
+                    tags: client.tags.map(tag => `# ${tag.title}`).join('\n')
+                }
+            };
         } catch (error) {
-            bot.sendMessage(chatId, 'Ошибка соединения с сервером.');
             console.error(error);
+            return null;
+        }
+    }
+
+    static async anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment) {
+        const clientData = await this.apiClientData(phone);
+        if (!clientData) {
+            return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
         }
 
+        const { ticketsText, client } = clientData;
+        let anketa = `${ticketsText}\n\n${client.name} (${client.birthDate})\n+${client.phone}`;
+        let captionText = `${client.tags}\n\n${anketa}\n\nВаш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
+
+        const { fileId, messageId } = await this.apiSendPhotoUrl(bot, chatId, client.photoUrl, captionText);
+
+        let inline_keyboard = [
+            [
+                { text: "ТЗ 🏋🏼‍♂️", callback_data: `vc_goal@tz@${messageId}@${phone}` },
+                { text: "ГП 🤸🏻‍♀️", callback_data: `vc_goal@gp@${messageId}@${phone}` },
+                { text: "Аква 🏊", callback_data: `vc_goal@aq@${messageId}@${phone}` }
+            ],
+            [{ text: "✖️ Закрыть", callback_data: `vc_goal@cancel@${messageId}@${phone}` }]
+        ];
+        await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
+
+        return { comment, tags: client.tags, anketa, fileId };
     }
+
+    // Отправляет анкету тренеру, ставит тег тренера в 1С
+    static async anketaToTrainer(bot, chatId, prisma, trainer, vptRequest) {
+        let phoneWithoutPlus = this.parseMessage(vptRequest.phoneNumber)?.phone;
+        // Получаем анкету по API
+        const clientData = await this.apiClientData(phoneWithoutPlus);
+        if (!clientData) {
+            return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
+        }
+
+        // Ставим ТЕГ ТРЕНЕРА
+        let newTag = BotHelper.getTag(trainer.name, vptRequest.goal);
+        await this.addTag(clientData.passToken, clientData.client.id, newTag);
+        console.log(`Обновлены данные заявки #${vptRequest.id}, новый userId: ${trainer.id}, новый тег: ${newTag}`);
+
+        const { ticketsText, client } = clientData;
+        let goalRusWithEmojii = this.goalRusWithEmojii(vptRequest.goal);
+
+        let captionText = `${ticketsText}\n${client.name} (${client.birthDate})\n+${client.phone}\n\nЦель: ${goalRusWithEmojii}\nВремя суток: ${vptRequest.visitTime}\n✍️Комментарий:\n${vptRequest.comment}\n\n${this.nowDateTime()}\n🎯 Отправлено ${newTag}`;
+
+        const { fileId, messageId } = await this.apiSendPhotoUrl(bot, trainer.chatId, client.photoUrl, captionText);
+        // Обновляем кнопки
+        let inline_keyboard_for_trainer = [
+            [
+                {
+                    text: '✅ Беру',
+                    callback_data: [`vpt_status`, `accepted`, vptRequest.id].join('@')
+                },
+                {
+                    text: '❌ Не беру',
+                    callback_data: [`vpt_status`, `rejected`, vptRequest.id].join('@')
+                }
+            ]
+        ];
+        await this.updateInlineKeyboard(bot, trainer.chatId, messageId, inline_keyboard_for_trainer);
+
+        await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, `${trainer.chatId}@${messageId}`);
+        await this.updateVptRequestUserId(prisma, vptRequest.id, trainer.id);
+        await this.updateVptRequestComment(prisma, vptRequest.id, captionText);
+  
+        bot.sendMessage(chatId, `Заявка направлена тренеру # ${newTag}`);
+
+        return messageId;
+    }
+
 
     // Передаем анкету фитнес-директору
     static async anketaTrainerChoosingToFitDir(bot, prisma, anketa, comment, tag, requestVptPhotoId, goal, visitTime, authorTelegramUserInfo, phoneWithoutPlus, vptRequest) {
@@ -117,12 +155,13 @@ class BotHelper {
         let buttonsPerRow = 3;
         let inline_keyboard = [];
         let row = [];
+        let isDeleting = false; // заявка удаляется из БД
         trainersWithGoal.forEach((trainer, index) => {
             row.push({
                 text: trainer.name,
                 //messageId чтобы перерисовать кнопки типа отправлено тренеру Ващенко
                 //trainer.chatId чтобы было понятно какому тренеру в какой чат слать анкету с клиентом
-                callback_data: ['vs', goal, messageId, trainer.chatId, vptRequest.id].join('@')
+                callback_data: ['vs', isDeleting, messageId, trainer.chatId, vptRequest.id].join('@')
             });
 
             if (row.length === buttonsPerRow || index === trainersWithGoal.length - 1) {
@@ -132,8 +171,9 @@ class BotHelper {
         });
 
         // Добавляем кнопку закрытия в отдельный ряд
+        isDeleting = true;
         inline_keyboard.push([
-            { text: "🗑 Удалить заявку", callback_data: ['vs', 'delete', messageId, phoneWithoutPlus, vptRequest.id].join('@') }
+            { text: "🗑 Удалить заявку", callback_data: ['vs', isDeleting, messageId, null, vptRequest.id].join('@') }
         ]);
 
         await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
@@ -146,88 +186,6 @@ class BotHelper {
 
         const match = text.match(/Комментарий к заявке:\n([\s\S]*)/);
         return match ? match[1].trim() : '';
-    }
-    //  В момент создания заявки: Обращается к API, по номеру телефона в формате 79785667199 и отправляет в chatId анкету с кнопками для создателя заявки ТЗ ГП Аква
-    static async anketaByPhoneToTrainerAddTag(phone, bot, chatId, comment, goal, visitTime) {
-        console.log(`Подготавливаю анкету, ищу для телефона ${phone}`);
-        // return;
-        // Генерация подписи
-        const sign = crypto.createHash('sha256')
-            .update('phone:' + phone + ";key:" + process.env.SECRET_KEY)
-            .digest('hex');
-
-        const passTokenUrl = `https://${process.env.API_HOSTNAME}:${process.env.API_PORT}${process.env.API_PATH}/pass_token/?phone=${phone}&sign=${sign}`;
-
-        try {
-            const passTokenResponse = await axios.get(passTokenUrl, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    apikey: process.env.API_KEY,
-                    Authorization: process.env.AUTHORIZATION
-                }
-            });
-
-            if (passTokenResponse.data.result && passTokenResponse.data.data.pass_token) {
-                const passToken = passTokenResponse.data.data.pass_token;
-
-                let ticketsText = await this.getTicketsText(passToken);
-
-                let clientResponse = await this.getClientResponse(passToken);
-
-                if (clientResponse.data.result) {
-                    const client = clientResponse.data.data;
-                    const id = client.id;
-                    const name = `${client.name} ${client.last_name}`;
-                    // const phone = `${client.phone}`;
-                    const birthDate = new Date(client.birthday).toLocaleDateString("ru-RU");
-                    const photoUrl = client.photo;
-                    // const tags = client.tags.map(tag => `# ${tag.title}`).join('\n');
-
-                    // let tag = "ХОЧЕТ НА ВПТ";
-                    // try {
-                    //   await this.addTag(passToken, id, tag);
-                    //   await bot.sendMessage(chatId, `Установлен тег: "${tag}"`);
-                    // } catch (e) {
-                    //   await bot.sendMessage(chatId, `Не удалось установить тег "${tag}"`);
-                    // }
-
-                    // try {
-                    //   await this.deleteTag(passToken, id, tag);
-                    //   await bot.sendMessage(chatId, `Удален тег "${tag}"`);
-                    // } catch (e) {
-                    //   console.error(e);
-                    //   await bot.sendMessage(chatId, `Не удалось удалить тег "${tag}"`);
-                    // }
-
-                    let goalRusWithEmojii = this.goalRusWithEmojii(goal);
-                    let captionText = `${ticketsText}\n\n${name} (${birthDate})\n+${phone}\n\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\n\nКомментарий к заявке:\n${comment}\n`;
-                    const { fileId, messageId } = await this.sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText);
-
-                    // let inline_keyboard = [
-                    //     [
-                    //         { text: "ТЗ 🏋🏼‍♂️", callback_data: ['vc_goal', 'tz', messageId, phone].join('@') },
-                    //         { text: "ГП 🤸🏻‍♀️", callback_data: ['vc_goal', 'gp', messageId, phone].join('@') },
-                    //         { text: "Аква 🏊", callback_data: ['vc_goal', 'aq', messageId, phone].join('@') }
-                    //     ],
-                    //     [
-                    //         { text: "✖️ Закрыть", callback_data: ['vc_goal', 'cancel', messageId, phone].join('@') }
-                    //     ]
-                    // ];
-                    // await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
-
-                    // Будет сохранено в БД
-                    return messageId;
-                } else {
-                    bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
-                }
-            } else {
-                bot.sendMessage(chatId, 'Ошибка при получении токена, попробуйте позже.');
-            }
-        } catch (error) {
-            bot.sendMessage(chatId, 'Ошибка соединения с сервером.');
-            console.error(error);
-        }
-
     }
 
     // Функция обновления текста кнопки
@@ -251,7 +209,7 @@ class BotHelper {
     }
 
     // Функция отправки изображения с captionText в чат cahtId и возвращает fileId (фото телеграм)  и messageId (id сообщения в чате)
-    static async sendPhotoCaptionTextKeyboard(bot, chatId, photoUrl, captionText) {
+    static async apiSendPhotoUrl(bot, chatId, photoUrl, captionText) {
         try {
             let filePath;
 
@@ -446,6 +404,14 @@ class BotHelper {
         return { phone: phone, comment: comment };
     }
 
+    static nowDateTime() {
+        let nowdatetime = new Date().toLocaleString('ru-RU', {
+            timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+        return nowdatetime;
+    }
+
     static async getFitDirChatId(prisma) {
         const fitDirPhone = process.env.FIT_DIR_PHONE;
         if (!fitDirPhone) {
@@ -543,7 +509,7 @@ class BotHelper {
     }
 
     // обновляет поле tgChatMessageId для заявки на ВПТ
-    static async updateTgChatMessageId(prisma, id, tgChatMessageId) {
+    static async updateVptRequestTgChatMessageId(prisma, id, tgChatMessageId) {
         try {
             const updatedRequest = await prisma.vPTRequest.update({
                 where: { id },
@@ -571,6 +537,33 @@ class BotHelper {
         }
     }
 
+    static async updateVptRequestUserId(prisma, id, userId) {
+        try {
+            const updatedRequest = await prisma.vPTRequest.update({
+                where: { id },
+                data: { userId: userId }
+            });
+
+            return updatedRequest;
+        } catch (error) {
+            console.error(`Ошибка обновления userId для vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
+
+    static async updateVptRequestComment(prisma, id, comment) {
+        try {
+            const updatedRequest = await prisma.vPTRequest.update({
+                where: { id },
+                data: { comment: comment }
+            });
+
+            return updatedRequest;
+        } catch (error) {
+            console.error(`Ошибка обновления userId для vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
 
     // Создает отправителя заявки в БД
     static async checkOrCreateScreenshotUser(prisma, telegramID, telegramNickname) {
