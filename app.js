@@ -769,11 +769,16 @@ bot.on('callback_query', async (query) => {
         if (isDeleting == 'true') {
             if (!vptRequest) {
                 bot.sendMessage(chatId, `Не найдена заявка #${vptRequestId}`);
+                try {
+                    await bot.deleteMessage(query.message.chat.id, query.message.message_id);
+                } catch (error) {
+                    console.error("Ошибка при удалении сообщения:", error);
+                }
                 return;
             }
             await BotHelper.deleteVPTRequestById(prisma, vptRequestId);
             await BotHelper.deleteMessage(bot, chatId, messageId);
-            bot.sendMessage(chatId, `--- Удалена анкета--- \n\n${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
+            bot.sendMessage(chatId, `--- Удалена анкета--- \n\n${vptRequest.phoneNumber} ${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
         } 
         // ФитДир нажал на тренера
         else {
@@ -809,7 +814,12 @@ bot.on('callback_query', async (query) => {
                     where: { id: requestId },
                 });
                 if (!request) {
-                    bot.sendMessage(chatId, 'Заявка не найдена или уже удалена.');
+                    bot.sendMessage(chatId, `Заявка #${requestId} не найдена или уже удалена.`);
+                    try {
+                        await bot.deleteMessage(query.message.chat.id, query.message.message_id);
+                    } catch (error) {
+                        console.error("Ошибка при удалении сообщения:", error);
+                    }
                     return;
                 }
 
@@ -881,10 +891,28 @@ bot.on('callback_query', async (query) => {
                     where: { id: requestId },
                 });
 
+                // При удалении заявки удаляем у фитдира сообщение
+                try {
+                    await bot.deleteMessage(query.message.chat.id, query.message.message_id);
+                } catch (error) {
+                    console.error("Ошибка при удалении сообщения:", error);
+                }
+
                 if (!existingRequest) {
                     bot.sendMessage(chatId, `Заявка #${requestId} не найдена или уже удалена.`);
                     return;
                 }
+
+                // При удалении заявки удаляем у тренера первое сообщение с заявкой
+                if (existingRequest.tgChatMessageId) {
+                    let [trainerChatId, trainerMessageId] = existingRequest.tgChatMessageId.split('@');
+                    try {
+                        await bot.deleteMessage(trainerChatId, trainerMessageId);
+                    } catch (error) {
+                        console.error("Ошибка при удалении сообщения:", error);
+                    }
+                }
+
 
                 // Удаляем заявку
                 await prisma.vPTRequest.delete({
@@ -1285,6 +1313,26 @@ async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser,
     }
 }
 
+// показывает заявку по команде
+bot.onText(/\/vpt_request_show(\d+)/, async (msg, match) => {
+
+    const chatId = msg.chat.id;
+    const vptRequestId = match[1];    // 56
+
+    let user = await getUserByChatId(chatId);
+    if (!user) {
+        bot.sendMessage(chatId, `Пользователь c chatId ${chatId} не найден.`);
+        return;
+    }
+    
+    let vptRequest = await BotHelper.getVPTRequestById(prisma, vptRequestId);
+    if (!vptRequest) {
+        bot.sendMessage(chatId, `Заявка c id ${vptRequestId} не найдена.`);
+        return;
+    }
+    // отправляем анкету себе тому, кто использовал эту команду
+    await sendSingleVPTRequestMessage(bot, chatId, user, user, vptRequest);
+})
 
 // Регулярка отлавливает три варианта команд:
 // /vpt_none12345, /vpt_accepted12345, /vpt_rejected12345

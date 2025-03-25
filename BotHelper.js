@@ -119,7 +119,7 @@ class BotHelper {
         await this.updateVptRequestUserId(prisma, vptRequest.id, trainer.id);
         await this.updateVptRequestComment(prisma, vptRequest.id, captionText);
   
-        bot.sendMessage(chatId, `Заявка направлена тренеру # ${newTag}`);
+        bot.sendMessage(chatId, `Заявка направлена тренеру # ${newTag}\nПросмотр: /vpt_request_show${vptRequest.id}`);
 
         return messageId;
     }
@@ -141,8 +141,7 @@ class BotHelper {
         let requestVptComment = `${tag}\n\n${anketa}\n\nКомментарий к заявке:\n✍️  ${comment}`;
         let captionText = `${requestVptComment}\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\nАвтор: ${authorTelegramUserInfo}`;
         const sentMessage = await bot.sendPhoto(fitDirChatId, requestVptPhotoId, {
-            caption: captionText,
-            parse_mode: 'Markdown'
+            caption: captionText
         });
         let messageId = sentMessage.message_id; // Возвращаем ID отправленного сообщения
 
@@ -231,8 +230,7 @@ class BotHelper {
             }
 
             const sentMessage = await bot.sendPhoto(chatId, filePath, {
-                caption: captionText,
-                parse_mode: 'Markdown'
+                caption: captionText
             });
 
             const messageId = sentMessage.message_id;
