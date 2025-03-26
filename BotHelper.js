@@ -130,16 +130,17 @@ class BotHelper {
 
         console.log('Ща отправим фото и мегакоммент с кнопками выбора тренеров');
 
-        let fitDirChatId = await this.getFitDirChatId(prisma);
-        if (!fitDirChatId) {
-            bot.sendMessage('ФитДир не найден');
+        let fitDirUser = await this.getFitDirUser(prisma);
+        if (!fitDirUser) {
+            bot.sendMessage('ФитДир не найден, проверьте настройки .env');
             return;
         }
+        let fitDirChatId = fitDirUser.chatId;
 
         // отправляем ФИТДИРУ сообщение с фото, пока без кнопок
         let goalRusWithEmojii = this.goalRusWithEmojii(goal);
         let requestVptComment = `${tag}\n\n${anketa}\n\nКомментарий к заявке:\n✍️  ${comment}`;
-        let captionText = `${requestVptComment}\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\nАвтор: ${authorTelegramUserInfo}`;
+        let captionText = `Назначить тренера @${fitDirUser.nick}\n${requestVptComment}\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\nАвтор: ${authorTelegramUserInfo}`;
         const sentMessage = await bot.sendPhoto(fitDirChatId, requestVptPhotoId, {
             caption: captionText
         });
@@ -410,7 +411,7 @@ class BotHelper {
         return nowdatetime;
     }
 
-    static async getFitDirChatId(prisma) {
+    static async getFitDirUser(prisma) {
         const fitDirPhone = process.env.FIT_DIR_PHONE;
         if (!fitDirPhone) {
             console.error("FIT_DIR_PHONE не задан в .env");
@@ -422,7 +423,7 @@ class BotHelper {
             select: { chatId: true }
         });
 
-        return user ? user.chatId : null;
+        return user ? user : null;
     }
 
     // список тренеров по "ТЗ" или "ГП" или "Аква"
