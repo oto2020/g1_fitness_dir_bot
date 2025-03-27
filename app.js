@@ -804,6 +804,7 @@ bot.on('callback_query', async (query) => {
             await BotHelper.deleteMessage(bot, chatId, messageId);
             console.log(`Удалено сообщение ${chatId}@${messageId}`);
         }
+        await BotHelper.deleteTag(bot, chatId, prisma, vptRequest);
         await BotHelper.deleteVPTRequestById(prisma, vptRequestId);
         bot.sendMessage(chatId, `⚠️ Удалена заявка\n${vptRequest.phoneNumber} ${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
     }

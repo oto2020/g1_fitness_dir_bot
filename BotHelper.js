@@ -80,6 +80,41 @@ class BotHelper {
         return { comment, tags: client.tags, anketa, fileId };
     }
 
+    // Удаляет тег тренера из 1С
+    static async deleteTag(bot, chatId, prisma, vptRequest) {
+        try {
+            let phoneWithoutPlus = this.parseMessage(vptRequest.phoneNumber)?.phone;
+
+            let trainerId = vptRequest.userId;
+            if (trainerId) {
+                let trainer = await this.getUserById(prisma, trainerId);
+    
+                // Получаем анкету по API
+                const clientData = await this.apiClientData(phoneWithoutPlus);
+                if (!clientData) {
+                    return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
+                }
+    
+                // Собираем ТЕГ ТРЕНЕРА
+                let newTag = BotHelper.getTag(trainer.name, vptRequest.goal);
+                // Отправка POST-запроса на /tag
+                const tagUrl = `https://${process.env.API_HOSTNAME}:${process.env.API_PORT}${process.env.API_PATH}/tag?tag=${newTag}&client_id=${clientData.client.id}`;
+                await axios.delete(tagUrl, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        apikey: process.env.API_KEY,
+                        Authorization: process.env.AUTHORIZATION,
+                        usertoken: clientData.passToken
+                    }
+                });
+                console.log(`Обновлены данные заявки #${vptRequest.id} Удален тег: ${newTag}`);
+            }
+        } catch (e) {
+            console.error('Не удалось удалить тег тренера из 1С', e);
+        }
+        
+    }
+
     // Отправляет анкету тренеру, ставит тег тренера в 1С
     static async anketaToTrainer(bot, chatId, prisma, trainer, vptRequest) {
         let phoneWithoutPlus = this.parseMessage(vptRequest.phoneNumber)?.phone;
@@ -309,19 +344,7 @@ class BotHelper {
         });
     }
 
-    // удалить тег
-    static async deleteTag(userToken, clientId, tag) {
-        // Отправка POST-запроса на /tag
-        const tagUrl = `https://${process.env.API_HOSTNAME}:${process.env.API_PORT}${process.env.API_PATH}/tag?tag=${tag}&client_id=${clientId}`;
-        await axios.delete(tagUrl, {
-            headers: {
-                'Content-Type': 'application/json',
-                apikey: process.env.API_KEY,
-                Authorization: process.env.AUTHORIZATION,
-                usertoken: userToken
-            }
-        });
-    }
+
 
     // Текст с информацией о членствах/пакетах/услугах
     static async getTicketsText(passToken) {
@@ -466,6 +489,18 @@ class BotHelper {
         return user;
     }
 
+    static async getUserById(prisma, id) {
+        if (!id) {
+            console.error("ID не задан");
+            return null;
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id }
+        });
+
+        return user;
+    }
 
     static async getVPTRequestById(prisma, id) {
         try {
