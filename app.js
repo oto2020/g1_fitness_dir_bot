@@ -491,7 +491,7 @@ bot.onText(/\/users/, async (msg) => {
         for (let i = 0; i < totalGroups; i++) {
             const group = groups[i];
             const usersInfo = group.map((user) => (
-                `${user.name}\n(⏳ ${user.noneStatusVptCount} | ✅ ${user.acceptedStatusVptCount} | ❌ ${user.rejectedStatusVptCount} / 🎯: ${user.wishVptCount})\nАнкета /profile${user.telegramID}\n@${user.nick}\n`
+                `${user.name}\n(⏳ ${user.currentMonthNone} | ✅ ${user.currentMonthAccepted} | ❌ ${user.currentMonthRejected} / 🎯: ${user.wishVptCount})\nАнкета /profile${user.telegramID}\n@${user.nick}\n`
             )).join('\n');
 
 
@@ -587,7 +587,7 @@ bot.on('message', async (msg) => {
         const { phone, comment } = parsedMessage;
         console.log(`phone: ${phone}, comment: ${comment}`);
         let anketaObj = await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment);
-        
+
         // Эти данные будут далее использованы после выбора подразделения/времени в анкете передаваемой фитдиру в vc goal и vc time
         anketas[phone] = anketaObj?.anketa
         comments[phone] = anketaObj?.comment;
@@ -780,7 +780,7 @@ bot.on('callback_query', async (query) => {
             ]
         );
         await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
-        
+
     }
 
     // Удаление заявки из БД и всех сообщений с ней связанных
@@ -1078,26 +1078,79 @@ async function getAggregatedUsers({ chatId, telegramID } = {}) {
     // Обратите внимание: используем prisma.$queryRawUnsafe
     // или формируем «шаблонными строками» с учётом экранирования
     const results = await prisma.$queryRawUnsafe(`
-      SELECT
-        u.*,
-        COUNT(v.id) AS factVptCount,
-        SUM(CASE WHEN v.status = 'accepted' THEN 1 ELSE 0 END) AS acceptedStatusVptCount,
-        SUM(CASE WHEN v.status = 'rejected' THEN 1 ELSE 0 END) AS rejectedStatusVptCount,
-        SUM(
-          CASE 
-            WHEN v.status <> 'accepted'
-              AND v.status <> 'rejected'
-            THEN 1
-            ELSE 0
-          END
-        ) AS noneStatusVptCount
-      FROM User u
-      LEFT JOIN VPTRequest v
-        ON u.id = v.userId
-        AND YEAR(v.createdAt) = YEAR(CURRENT_DATE())
-        AND MONTH(v.createdAt) = MONTH(CURRENT_DATE())
-      ${whereClause}
-      GROUP BY u.id
+    SELECT
+    u.*,
+
+    -- Заявки за текущий месяц
+    COUNT(CASE 
+      WHEN YEAR(v.createdAt) = YEAR(CURRENT_DATE()) 
+      AND MONTH(v.createdAt) = MONTH(CURRENT_DATE()) 
+      THEN 1 
+      ELSE NULL 
+    END) AS currentMonthVptCount,
+
+    SUM(CASE 
+      WHEN v.status = 'accepted' 
+      AND YEAR(v.createdAt) = YEAR(CURRENT_DATE()) 
+      AND MONTH(v.createdAt) = MONTH(CURRENT_DATE()) 
+      THEN 1 ELSE 0 
+    END) AS currentMonthAccepted,
+
+    SUM(CASE 
+      WHEN v.status = 'rejected' 
+      AND YEAR(v.createdAt) = YEAR(CURRENT_DATE()) 
+      AND MONTH(v.createdAt) = MONTH(CURRENT_DATE()) 
+      THEN 1 ELSE 0 
+    END) AS currentMonthRejected,
+
+    SUM(CASE 
+      WHEN v.status <> 'accepted' 
+      AND v.status <> 'rejected' 
+      AND YEAR(v.createdAt) = YEAR(CURRENT_DATE()) 
+      AND MONTH(v.createdAt) = MONTH(CURRENT_DATE()) 
+      THEN 1 ELSE 0 
+    END) AS currentMonthNone,
+
+    -- Заявки за прошлый месяц
+    COUNT(CASE 
+      WHEN YEAR(v.createdAt) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+      AND MONTH(v.createdAt) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+      THEN 1 
+      ELSE NULL 
+    END) AS lastMonthVptCount,
+
+    SUM(CASE 
+      WHEN v.status = 'accepted' 
+      AND YEAR(v.createdAt) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+      AND MONTH(v.createdAt) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+      THEN 1 ELSE 0 
+    END) AS lastMonthAccepted,
+
+    SUM(CASE 
+      WHEN v.status = 'rejected' 
+      AND YEAR(v.createdAt) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+      AND MONTH(v.createdAt) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+      THEN 1 ELSE 0 
+    END) AS lastMonthRejected,
+
+    SUM(CASE 
+      WHEN v.status <> 'accepted' 
+      AND v.status <> 'rejected' 
+      AND YEAR(v.createdAt) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+      AND MONTH(v.createdAt) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) 
+      THEN 1 ELSE 0 
+    END) AS lastMonthNone
+
+  FROM User u
+  LEFT JOIN VPTRequest v
+    ON u.id = v.userId
+    AND (
+      (YEAR(v.createdAt) = YEAR(CURRENT_DATE()) AND MONTH(v.createdAt) = MONTH(CURRENT_DATE()))
+      OR 
+      (YEAR(v.createdAt) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND MONTH(v.createdAt) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)))
+    )
+  ${whereClause}
+  GROUP BY u.id
     `);
 
     // Возвращаем массив записей (могут быть 0,1 или несколько)
@@ -1165,11 +1218,14 @@ function generateUserInfo(user) {
         `- Должность: ${user.position}\nИзменить: /position${parseInt(user.telegramID)}\n\n` +
         // `- Роль: ${user.role}\nИзменить /role${parseInt(user.telegramID)}\n\n` +
         `- Подразделение: ${user.vpt_list}\nИзменить: /vpt_list${parseInt(user.telegramID)}\n\n` +
-
         `ЗАЯВКИ ЗА ЭТОТ МЕСЯЦ:\n` +
-        `⏳ ${user.noneStatusVptCount} | неразобранные\nпросмотр: /vpt_none${parseInt(user.telegramID)}\n` +
-        `✅ ${user.acceptedStatusVptCount} | принятые\nпросмотр: /vpt_accepted${parseInt(user.telegramID)}\n` +
-        `❌ ${user.rejectedStatusVptCount} | отклоненные\nпросмотр: /vpt_rejected${parseInt(user.telegramID)}\n\n` +
+        `⏳ ${user.currentMonthNone} | неразобранные\nпросмотр: /vpt_none${parseInt(user.telegramID)}\n` +
+        `✅ ${user.currentMonthAccepted} | принятые\nпросмотр: /vpt_accepted${parseInt(user.telegramID)}\n` +
+        `❌ ${user.currentMonthRejected} | отклоненные\nпросмотр: /vpt_rejected${parseInt(user.telegramID)}\n\n` +
+        `ЗАЯВКИ ЗА ПРОШЛЫЙ МЕСЯЦ:\n` +
+        `⏳ ${user.lastMonthNone} | неразобранные\n` +
+        `✅ ${user.lastMonthAccepted} | принятые\n` +
+        `❌ ${user.lastMonthRejected} | отклоненные\n\n` +
         `🎯 ${user.wishVptCount} | запланировано ВПТ на месяц\nИзменить: /wishvptcount${parseInt(user.telegramID)}\n\n` +
         `- Фото: ${user.photo ? 'есть' : 'нет'}\nЗагрузить: /photo${parseInt(user.telegramID)}\n-------------------------\n\n`;
 }
@@ -1291,7 +1347,7 @@ bot.onText(/\/vpt_request_show(\d+)/, async (msg, match) => {
         bot.sendMessage(chatId, `Пользователь c chatId ${chatId} не найден.`);
         return;
     }
-    
+
     let vptRequest = await BotHelper.getVPTRequestById(prisma, vptRequestId);
     if (!vptRequest) {
         bot.sendMessage(chatId, `Заявка c id ${vptRequestId} не найдена.`);
@@ -1305,7 +1361,7 @@ bot.onText(/\/vpt_request_show(\d+)/, async (msg, match) => {
             // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
             let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${chatId}@${messageId}`;
             await BotHelper.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
-        } catch (e) { console.error(e);}
+        } catch (e) { console.error(e); }
     }
 })
 
