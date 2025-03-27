@@ -704,6 +704,7 @@ bot.on('callback_query', async (query) => {
                         // Записываем заявку в БД
                         let requestVptComment = `${anketa}\n\nКомментарий к заявке:\n✍️  ${comment}`;
                         let trainerTelegramID = null;
+                        let vptRequest;
                         try {
                             // пробуем создать если не существует ScreenshotUser 
                             const telegramID = query.from.id;  // Уникальный Telegram ID
@@ -711,7 +712,7 @@ bot.on('callback_query', async (query) => {
                             let screenshotUser = await BotHelper.checkOrCreateScreenshotUser(prisma, telegramID, authorTelegramUserInfo);
                             // Телеграм ИД автора заявки
                             let authorTelegramID = screenshotUser.uniqueId;
-                            let vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoId, comment, goalRus, '');
+                            vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoId, comment, goalRus, `${chatId}@${messageId}`);
 
                             console.log(`----\n${requestVptComment}\n----\nЦель: ${goal} \nФото: ${photoId}\n- Направляю эту анкету ФитДиру`);
 
@@ -724,6 +725,7 @@ bot.on('callback_query', async (query) => {
                         } catch (e) {
                             bot.sendMessage(chatId, 'Ошибка при сохранении заявки в БД');
                             console.error(e);
+                            return;
                         }
 
 
@@ -732,6 +734,11 @@ bot.on('callback_query', async (query) => {
                         inline_keyboard.push(
                             [
                                 { text: `✅ Отправлен в ${goalRusWithEmojii} на ${visitTime}`, callback_data: `send_text@+${phoneWithoutPlus}` } // при нажатии бот выплюнет обратно текст во втором параметре
+                            ]
+                        );
+                        inline_keyboard.push(
+                            [
+                                { text: `🗑 Удалить заявку`, callback_data: ['vpt_delete', vptRequest.id].join('@') } // Удаление заявки на ВПТ Татьяной
                             ]
                         );
                         await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
@@ -745,8 +752,6 @@ bot.on('callback_query', async (query) => {
 
     // ФитДир выбрал тренера vpt request send
     if (queryTheme === 'vs') {
-        // console.log(['vs', goal, messageId, trainer.chatId, vptRequest.id].join('@'));
-
         // инфа из query
         let isDeleting = queryValue;
         let messageId = queryId;
@@ -765,37 +770,45 @@ bot.on('callback_query', async (query) => {
         // console.log(vptRequest);
         // console.log(trainer);
 
-        // ФитДир нажал "Удалить заявку"
-        if (isDeleting == 'true') {
-            if (!vptRequest) {
-                bot.sendMessage(chatId, `Не найдена заявка #${vptRequestId}`);
-                try {
-                    await bot.deleteMessage(query.message.chat.id, query.message.message_id);
-                } catch (error) {
-                    console.error("Ошибка при удалении сообщения:", error);
-                }
-                return;
-            }
-            await BotHelper.deleteVPTRequestById(prisma, vptRequestId);
-            await BotHelper.deleteMessage(bot, chatId, messageId);
-            bot.sendMessage(chatId, `--- Удалена анкета--- \n\n${vptRequest.phoneNumber} ${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
-        } 
-        // ФитДир нажал на тренера
-        else {
-            // Отправляем анкету тренеру, ставим тег в 1С, обновляем заявку в БД
-            await BotHelper.anketaToTrainer(bot, chatId, prisma, trainer, vptRequest);
+        // Отправляем анкету тренеру, ставим тег в 1С, обновляем заявку в БД
+        await BotHelper.anketaToTrainer(bot, chatId, prisma, trainer, vptRequest);
 
-            let inline_keyboard = [];
-            inline_keyboard.push(
-                [
-                    { text: `✅ Отправлено ${trainer.name}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
-                ]
-            );
-            await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
-        }
+        let inline_keyboard = [];
+        inline_keyboard.push(
+            [
+                { text: `✅ Отправлено ${trainer.name}`, callback_data: 'okay' } // Здесь должена быть ссылка на заявку
+            ]
+        );
+        await BotHelper.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
+        
     }
 
-    // Фитдир направляет повторно либо удаляет заявку: povtorno или remove "Повторно" "Удалить"
+    // Удаление заявки из БД и всех сообщений с ней связанных
+    if (queryTheme === 'vpt_delete') {
+        let vptRequestId = queryValue;
+        console.log(`vpt_delete #${vptRequestId}`);
+
+        let vptRequest = await BotHelper.getVPTRequestById(prisma, vptRequestId);
+        if (!vptRequest) {
+            bot.sendMessage(chatId, `Не найдена заявка #${vptRequestId}`);
+            try {
+                await bot.deleteMessage(query.message.chat.id, query.message.message_id);
+            } catch (error) {
+                console.error("Ошибка при удалении сообщения:", error);
+            }
+            return;
+        }
+        let tgVptChatMessages = vptRequest.tgChatMessageId?.split('|');
+        for (const vptTgChatMessage of tgVptChatMessages) {
+            let [chatId, messageId] = vptTgChatMessage.split('@');
+            await BotHelper.deleteMessage(bot, chatId, messageId);
+            console.log(`Удалено сообщение ${chatId}@${messageId}`);
+        }
+        await BotHelper.deleteVPTRequestById(prisma, vptRequestId);
+        bot.sendMessage(chatId, `⚠️ Удалена заявка\n${vptRequest.phoneNumber} ${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
+    }
+
+    // Фитдир направляет повторно заявку: povtorno "Повторно"
     if (queryTheme === 'vpt_request') {
         // Внутри любого хендлера, когда нужно проверить заявку:
         const request = await checkRequestExistence(bot, chatId, queryId);
@@ -842,7 +855,15 @@ bot.on('callback_query', async (query) => {
                 }
 
                 // 5. Отправляем заявку владельцу
-                await sendSingleVPTRequestMessage(bot, requestOwner.chatId, requestOwner, requestOwner, request);
+                let messageId = await sendSingleVPTRequestMessage(bot, requestOwner.chatId, requestOwner, requestOwner, request);
+                try {
+                    if (messageId) {
+                        // Чтобы потом можно было удалить сообщение вместе с заявкой
+                        // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
+                        let newTgChatMessageId = `${request.tgChatMessageId}|${requestOwner.chatId}@${messageId}`;
+                        await BotHelper.updateVptRequestTgChatMessageId(prisma, request.id, newTgChatMessageId);
+                    }
+                } catch (e) { console.error(e); }
 
                 // 5.b. Дублируем сообщение в группу без кнопок // <-- новое
                 const statusText =
@@ -872,62 +893,6 @@ bot.on('callback_query', async (query) => {
             } catch (err) {
                 console.error('Ошибка при повторной отправке заявки:', err);
                 bot.sendMessage(chatId, 'Произошла ошибка при повторной отправке заявки.');
-            }
-        }
-
-        else if (queryValue === 'remove') {
-            try {
-                // Проверяем, что текущий пользователь (user) — админ
-                if (user.role != 'админ') {
-                    bot.sendMessage(chatId, 'У вас нет прав на удаление заявок.');
-                    return;
-                }
-
-                // Преобразуем ID заявки
-                const requestId = parseInt(queryId, 10);
-
-                // Ищем заявку в БД
-                const existingRequest = await prisma.vPTRequest.findUnique({
-                    where: { id: requestId },
-                });
-
-                // При удалении заявки удаляем у фитдира сообщение
-                try {
-                    await bot.deleteMessage(query.message.chat.id, query.message.message_id);
-                } catch (error) {
-                    console.error("Ошибка при удалении сообщения:", error);
-                }
-
-                if (!existingRequest) {
-                    bot.sendMessage(chatId, `Заявка #${requestId} не найдена или уже удалена.`);
-                    return;
-                }
-
-                // При удалении заявки удаляем у тренера первое сообщение с заявкой
-                if (existingRequest.tgChatMessageId) {
-                    let [trainerChatId, trainerMessageId] = existingRequest.tgChatMessageId.split('@');
-                    try {
-                        await bot.deleteMessage(trainerChatId, trainerMessageId);
-                    } catch (error) {
-                        console.error("Ошибка при удалении сообщения:", error);
-                    }
-                }
-
-
-                // Удаляем заявку
-                await prisma.vPTRequest.delete({
-                    where: { id: requestId },
-                });
-
-                // Уведомляем в чат, что заявка удалена
-                bot.sendMessage(chatId, `Заявка #${requestId} (${existingRequest.goal}) успешно удалена администратором.`);
-
-                // При желании можно уведомить общий чат или журнал
-                // bot.sendMessage(process.env.GROUP_ID, `Админ ${user.name} удалил заявку #${requestId} (${existingRequest.goal}).`);
-
-            } catch (error) {
-                console.error('Ошибка при удалении заявки:', error);
-                bot.sendMessage(chatId, 'Произошла ошибка при удалении заявки.');
             }
         }
     }
@@ -1266,7 +1231,7 @@ async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser,
         },
         {
             text: '🗑 Удалить',
-            callback_data: [`vpt_request`, `remove`, request.id].join('@')
+            callback_data: [`vpt_delete`, request.id].join('@')
         }
     ];
 
@@ -1284,25 +1249,26 @@ async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser,
         inline_keyboard.push(row2);
     }
 
+    let sentMessage;
     // Шаг 4: Отправляем сообщение
     try {
         if (request.photo) {
             // Если есть фото и функция sendPhotoWithRetry передана —
             // используем её, иначе стандартное bot.sendPhoto
             if (typeof sendPhotoWithRetry === 'function') {
-                await sendPhotoWithRetry(chatId, request.photo, captionText, {
+                sentMessage = await sendPhotoWithRetry(chatId, request.photo, captionText, {
                     reply_markup: { inline_keyboard }
                 });
             } else {
                 // Стандартная отправка
-                await bot.sendPhoto(chatId, request.photo, {
+                sentMessage = await bot.sendPhoto(chatId, request.photo, {
                     caption: captionText,
                     reply_markup: { inline_keyboard }
                 });
             }
         } else {
             // Если нет фото, просто sendMessage
-            await bot.sendMessage(chatId, captionText, {
+            sentMessage = await bot.sendMessage(chatId, captionText, {
                 reply_markup: { inline_keyboard }
             });
         }
@@ -1311,6 +1277,7 @@ async function sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser,
         // Можно дополнительно отправлять уведомление об ошибке
         // bot.sendMessage(chatId, 'Ошибка при отправке сообщения с заявкой.');
     }
+    return sentMessage?.message_id;
 }
 
 // показывает заявку по команде
@@ -1331,7 +1298,15 @@ bot.onText(/\/vpt_request_show(\d+)/, async (msg, match) => {
         return;
     }
     // отправляем анкету себе тому, кто использовал эту команду
-    await sendSingleVPTRequestMessage(bot, chatId, user, user, vptRequest);
+    let messageId = await sendSingleVPTRequestMessage(bot, chatId, user, user, vptRequest);
+    if (messageId) {
+        try {
+            // Чтобы потом можно было удалить сообщение вместе с заявкой
+            // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
+            let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${chatId}@${messageId}`;
+            await BotHelper.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
+        } catch (e) { console.error(e);}
+    }
 })
 
 // Регулярка отлавливает три варианта команд:
@@ -1407,7 +1382,15 @@ bot.onText(/\/vpt_(none|accepted|rejected)(\d+)/, async (msg, match) => {
             continue; // «тормозим» дальнейшее выполнение кода
         }
 
-        await sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser, request, sendPhotoWithRetry);
+        let messageId = await sendSingleVPTRequestMessage(bot, chatId, currentUser, targetUser, request, sendPhotoWithRetry);
+        try {
+            if (messageId) {
+                // Чтобы потом можно было удалить сообщение вместе с заявкой
+                // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
+                let newTgChatMessageId = `${request.tgChatMessageId}|${chatId}@${messageId}`;
+                await BotHelper.updateVptRequestTgChatMessageId(prisma, request.id, newTgChatMessageId);
+            }
+        } catch (e) { console.error(e); }
 
         // Небольшая пауза между сообщениями, чтобы Telegram не ругался
         await new Promise(r => setTimeout(r, 500));

@@ -100,6 +100,7 @@ class BotHelper {
         let captionText = `${ticketsText}\n${client.name} (${client.birthDate})\n+${client.phone}\n\nЦель: ${goalRusWithEmojii}\nВремя суток: ${vptRequest.visitTime}\n✍️Комментарий:\n${vptRequest.comment}\n\n${this.nowDateTime()}\n🎯 Отправлено ${newTag}`;
 
         const { fileId, messageId } = await this.apiSendPhotoUrl(bot, trainer.chatId, client.photoUrl, captionText);
+
         // Обновляем кнопки
         let inline_keyboard_for_trainer = [
             [
@@ -115,7 +116,10 @@ class BotHelper {
         ];
         await this.updateInlineKeyboard(bot, trainer.chatId, messageId, inline_keyboard_for_trainer);
 
-        await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, `${trainer.chatId}@${messageId}`);
+        // Чтобы потом можно было удалить сообщение вместе с заявкой
+        // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
+        let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${trainer.chatId}@${messageId}`;
+        await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
         await this.updateVptRequestUserId(prisma, vptRequest.id, trainer.id);
         await this.updateVptRequestComment(prisma, vptRequest.id, captionText);
   
@@ -146,7 +150,10 @@ class BotHelper {
         });
         let messageId = sentMessage.message_id; // Возвращаем ID отправленного сообщения
 
-
+        // Чтобы потом можно было удалить сообщение вместе с заявкой
+        // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
+        let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${fitDirChatId}@${messageId}`;
+        await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
 
         // генерируем клаиатуру с тренерами
         let goalRus = this.goalRus(goal);
@@ -173,7 +180,7 @@ class BotHelper {
         // Добавляем кнопку закрытия в отдельный ряд
         isDeleting = true;
         inline_keyboard.push([
-            { text: "🗑 Удалить заявку", callback_data: ['vs', isDeleting, messageId, null, vptRequest.id].join('@') }
+            { text: "🗑 Удалить заявку", callback_data: ['vpt_delete', vptRequest.id].join('@') } // Удаление заявки ВПТ 
         ]);
 
         await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
@@ -419,8 +426,7 @@ class BotHelper {
         }
 
         const user = await prisma.user.findUnique({
-            where: { phoneNumber: fitDirPhone },
-            select: { chatId: true }
+            where: { phoneNumber: fitDirPhone }
         });
 
         return user ? user : null;

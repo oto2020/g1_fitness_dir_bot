@@ -99,10 +99,10 @@ model VPTRequest {
   visitTime      String   @db.VarChar(255) // Утро, Обед, Вечер, Весь день
   phoneNumber    String   @db.VarChar(255)
   photo          String?      // Адрес фото скриншота экрана телеграм
-  comment        String?  @db.VarChar(1000)
+  comment        String?  @db.VarChar(2000)
   goal           String?  @db.VarChar(255) // Новое поле "цель"
   createdAt      DateTime @default(now())
-  tgChatMessageId String? // Новый столбец (nullable)
+  tgChatMessageId String? @db.VarChar(1000) // Новый столбец (nullable)
 
   // Возможные статусы:
   // Не в работе → none
