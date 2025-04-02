@@ -4,7 +4,7 @@ const BotHelper = require('./BotHelper'); // Подключаем BotHelper
 const TelegramBot = require('node-telegram-bot-api');
 
 const prisma = new PrismaClient();
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: false });
+const bot = new TelegramBot(process.env.TOKEN, { polling: false });
 
 // Функция для поиска просроченных заявок и отправки фитнес-директору
 async function processExpiredRequests() {
