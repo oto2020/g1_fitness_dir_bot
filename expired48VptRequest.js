@@ -26,6 +26,8 @@ async function processExpiredRequests() {
 
         console.log(`[${new Date().toLocaleString()}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
 
+        bot.sendMessage(process.env.GROUP_ID, `[${new Date().toLocaleString()}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
+
         for (const vptRequest of expiredRequests) {
             try {
                 await BotHelper.anketaToFitDir(bot, prisma, vptRequest);
@@ -39,11 +41,12 @@ async function processExpiredRequests() {
     }
 }
 
-// Запуск cron-задачи каждый час
-cron.schedule('0 * * * *', async () => {
+// Запуск cron-задачи каждый день в 14:00
+cron.schedule('0 14 * * *', async () => {
     console.log("🔄 Запуск проверки и отправки просроченных заявок...");
     await processExpiredRequests();
 });
+
 
 // Запуск сразу при старте (для отладки)
 processExpiredRequests();
