@@ -127,10 +127,9 @@ class BotHelper {
 
         let result = firstRow +
             `${vptRequest.anketa}\n\n` +
-            `✍️  \"${vptRequest.comment}\"\n` +
+            `✍️ Комментарий:  ${vptRequest.comment}\n` +
             `${this.goalRusWithEmojii(vptRequest.goal)}\n` +
             `${this.visitTimeWithEmojii(vptRequest.visitTime)}\n\n` +
-            `Текущий статус #${vptRequest.id}: ${statusText}` +
             lastRow;
 
         if (result.length > 1000) {
@@ -241,7 +240,8 @@ class BotHelper {
         const { client } = clientData;
 
         let firstRow = `Тренер @${trainer.nick} взять клиента на ВПТ\n\n`;
-        let captionText = this.captionTextForTrainer(firstRow, vptRequest, '');
+        let lastRow = `\n\n⚠️ Если не нажать на кнопку "Беру" / "Не беру" в течение двух суток (до ${this.nowPlus48Hours()}), клиент будет передан другому тренеру, а ваша эффективность будет снижена. Заинтересованный клиент ждёт.`
+        let captionText = this.captionTextForTrainer(firstRow, vptRequest, lastRow);
         let apiSendPhotoObj = await this.apiSendPhotoUrl(bot, trainer.chatId, client.photoUrl, captionText);
         if (!apiSendPhotoObj) {
             bot.sendMessage(chatId, 'Ошибка при получении фото');
@@ -268,7 +268,9 @@ class BotHelper {
         // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
         let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${trainer.chatId}@${messageId}`;
         await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
+        
         await this.updateVptRequestUserId(prisma, vptRequest.id, trainer.id);
+        await this.updateVptRequestCreatedAt(prisma, vptRequest.id);
 
         bot.sendMessage(chatId, `Отправлено ${newTag}\nПросмотр: /vpt_request_show${vptRequest.id}`);
 
@@ -278,8 +280,9 @@ class BotHelper {
 
     // Передаем анкету фитнес-директору
     static async anketaToFitDir(bot, prisma, vptRequest) {
+        // Когда передаем фитдиру тренер обнуляется
+        vptRequest = await this.updateVptRequestUserId(prisma, vptRequest.id, null);
         let requestVptPhotoId = vptRequest.photo;
-        let { visitTime, anketa, comment, history, tags } = vptRequest;
         let screenshotUser = await this.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
         console.log('Ща отправим фото и мегакоммент с кнопками выбора тренеров');
 
@@ -562,6 +565,55 @@ class BotHelper {
         return nowdatetime;
     }
 
+    static nowPlus48Hours() {
+        let now = new Date();
+        now.setHours(now.getHours() + 48); // Добавляем 48 часов
+    
+        let newDateTime = now.toLocaleString('ru-RU', {
+            timeZone: 'Europe/Moscow',
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    
+        return newDateTime;
+    }
+    
+    
+    static async getExpiredRequests(prisma) {
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setHours(twoDaysAgo.getHours() - 48); // Отнимаем 48 часов
+
+        return await prisma.vPTRequest.findMany({
+            where: {
+                status: 'none',
+                createdAt: { lt: twoDaysAgo }
+            }
+        });
+    }
+
+
+    static tomorrowDateTime14h00m() {
+        let now = new Date();
+    
+        // Добавляем 1 день
+        now.setDate(now.getDate() + 1);
+    
+        // Устанавливаем время на 14:00
+        now.setHours(14, 0, 0, 0);
+    
+        let formattedDateTime = now.toLocaleString('ru-RU', {
+            timeZone: 'Europe/Moscow', 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit', 
+            minute: '2-digit'
+        });
+    
+        return formattedDateTime;
+    }
+
+    
     static async getFitDirUser(prisma) {
         const fitDirPhone = process.env.FIT_DIR_PHONE;
         if (!fitDirPhone) {
@@ -755,6 +807,21 @@ class BotHelper {
         }
     }
 
+    static async updateVptRequestCreatedAt(prisma, id) {
+        try {
+            const updatedRequest = await prisma.vPTRequest.update({
+                where: { id },
+                data: { createdAt: new Date() }
+            });
+    
+            return updatedRequest;
+        } catch (error) {
+            console.error(`Ошибка обновления created_at для vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
+
+    
     static async updateVptRequestUserId(prisma, id, userId) {
         try {
             const updatedRequest = await prisma.vPTRequest.update({
