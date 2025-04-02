@@ -843,40 +843,51 @@ bot.on('callback_query', async (query) => {
             const rejectionHandler = async (msg) => {
                 if (msg.chat.id !== chatId) return; // Игнорируем сообщения от других пользователей
 
-
                 // Получаем текст отказа
                 const rejectionReason = msg.text.trim();
 
-                // обновляем статус и историю заявки
-                vptRequest = await updateVPTRequestStatus(prisma, queryId, 'rejected');
-                vptRequest = await BotHelper.updateVptRequestHistory(prisma, queryId, `${vptRequest.history}\n\n${BotHelper.nowDateTime()}\n❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"`);
-
-                // удаляем тег тренера из 1С и актуализируем теги в vptRequest
-                await BotHelper.deleteTagForVptRequest(bot, chatId, prisma, vptRequest);
-
-                // Отправляем в чат группы
-                let firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}`;
-                let lastRow = `\n\nТренер: ${trainer.name}`;
-                let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
-                let captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow);
-                bot.sendPhoto(process.env.GROUP_ID, vptRequest.photo, { caption: captionText });
-
-                bot.answerCallbackQuery(query.id, {
-                    text: `❌ Заявка #${vptRequest.id} отклонена\nПричина: "${rejectionReason}"`,
-                    show_alert: true // true - показывает всплывающее окно
-                });
-
-                // Удаляем сообщение
                 try {
-                    const chatIdDel = query.message.chat.id;
-                    const messageIdDel = query.message.message_id;
-                    await bot.deleteMessage(chatIdDel, messageIdDel);
-                } catch (error) {
-                    console.error('Ошибка при удалении сообщения:', error);
-                }
+                    // обновляем статус и историю заявки
+                    vptRequest = await updateVPTRequestStatus(prisma, queryId, 'rejected');
+                    vptRequest = await BotHelper.updateVptRequestHistory(prisma, queryId, `${vptRequest.history}\n\n${BotHelper.nowDateTime()}\n❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"`);
 
-                // Удаляем обработчик после получения причины
-                bot.removeListener('message', rejectionHandler);
+                    // удаляем тег тренера из 1С и актуализируем теги в vptRequest
+                    await BotHelper.deleteTagForVptRequest(bot, chatId, prisma, vptRequest);
+
+                    // Отправляем в чат группы
+                    let firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Назначить другого тренера\n\n`;
+                    let lastRow = `\n\nТренер: ${trainer.name}`;
+                    let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
+                    let captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow);
+                    bot.sendPhoto(process.env.GROUP_ID, vptRequest.photo, { caption: captionText });
+
+                    // Отправляем ФитДиру
+                    let fitDirUser = await BotHelper.getFitDirUser(prisma);
+                    firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\nФД @${fitDirUser.nick}\n⚠️ Назначить другого тренера\n\n`;
+                    captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, ``);
+                    let sentMessage = await bot.sendPhoto(fitDirUser.chatId, vptRequest.photo, { caption: captionText });
+                    // Добавляем клавиатуру с тренерами
+                    await BotHelper.addKeyboard(prisma, bot, sentMessage.message_id, vptRequest, fitDirUser);
+
+                    bot.answerCallbackQuery(query.id, {
+                        text: `❌ Заявка #${vptRequest.id} отклонена\nПричина: "${rejectionReason}"`,
+                        show_alert: true // true - показывает всплывающее окно
+                    });
+
+                    // Удаляем сообщение у тренера, отклонившего заявку
+                    try {
+                        const chatIdDel = query.message.chat.id;
+                        const messageIdDel = query.message.message_id;
+                        await bot.deleteMessage(chatIdDel, messageIdDel);
+                    } catch (error) {
+                        console.error('Ошибка при удалении сообщения:', error);
+                    }
+
+                    // Удаляем обработчик после получения причины
+                    bot.removeListener('message', rejectionHandler);
+                } catch (e) {
+                    bot.sendMessage(chatId, 'Ошибка при отклонении заявки');
+                }
             }
 
             // Добавляем обработчик для получения причины отказа

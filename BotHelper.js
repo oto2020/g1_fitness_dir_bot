@@ -63,9 +63,9 @@ class BotHelper {
 
         const { ticketsText, client } = clientData;
         let anketa = `${ticketsText}\n${client.name} (${client.birthDate})\n+${client.phone}`;
-        let captionText = `${client.tags}\n\n`+
-            `${anketa}\n\n`+
-            `Ваш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n`+
+        let captionText = `${client.tags}\n\n` +
+            `${anketa}\n\n` +
+            `Ваш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n` +
             `✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
 
         let apiSendPhotoObj = await this.apiSendPhotoUrl(bot, chatId, client.photoUrl, captionText);
@@ -94,53 +94,58 @@ class BotHelper {
                 : vptRequest.status === 'accepted' ? 'принято'
                     : vptRequest.status === 'rejected' ? 'отклонено'
                         : 'нет статуса';
-    
+
         let result = firstRow +
             `${vptRequest.tags}\n\n` +
             `${vptRequest.anketa}\n\n` +
-            `✍️  "${vptRequest.comment}"\n` +
+            `✍️  \"${vptRequest.comment}\"\n` +
             `${this.goalRusWithEmojii(vptRequest.goal)}\n` +
             `${this.visitTimeWithEmojii(vptRequest.visitTime)}\n\n` +
             `Автор: ${screenshotUser?.sender}\n\n` +
             `${vptRequest.history}\n\n` +
             `Текущий статус #${vptRequest.id}: ${statusText}` +
             lastRow;
-    
+
         if (result.length > 1000) {
-            result = result.replace(vptRequest.anketa, '...');
+            const anketaLines = vptRequest.anketa.split('\n');
+            const shortenedAnketa = anketaLines.length > 2 ? `...\n${anketaLines.slice(-2).join('\n')}` : '...';
+            result = result.replace(vptRequest.anketa, shortenedAnketa);
         }
         if (result.length > 1000) {
             result = result.replace(vptRequest.history, '...');
         }
-        
+
         return result;
     }
-    
+
     static captionTextForTrainer(firstRow, vptRequest, lastRow) {
         const statusText =
             vptRequest.status === 'none' ? 'неразобрано'
                 : vptRequest.status === 'accepted' ? 'принято'
                     : vptRequest.status === 'rejected' ? 'отклонено'
                         : 'нет статуса';
-    
+
         let result = firstRow +
             `${vptRequest.anketa}\n\n` +
-            `✍️  "${vptRequest.comment}"\n` +
+            `✍️  \"${vptRequest.comment}\"\n` +
             `${this.goalRusWithEmojii(vptRequest.goal)}\n` +
             `${this.visitTimeWithEmojii(vptRequest.visitTime)}\n\n` +
             `Текущий статус #${vptRequest.id}: ${statusText}` +
             lastRow;
-    
+
         if (result.length > 1000) {
-            result = result.replace(vptRequest.anketa, '...');
+            const anketaLines = vptRequest.anketa.split('\n');
+            const shortenedAnketa = anketaLines.length > 2 ? `...\n${anketaLines.slice(-2).join('\n')}` : '...';
+            result = result.replace(vptRequest.anketa, shortenedAnketa);
         }
         if (result.length > 1000) {
             result = result.replace(vptRequest.history, '...');
         }
-        
+
         return result;
     }
-    
+
+
 
     // Удаляет тег тренера из 1С
     static async deleteTagForVptRequest(bot, chatId, prisma, vptRequest) {
@@ -273,8 +278,6 @@ class BotHelper {
 
     // Передаем анкету фитнес-директору
     static async anketaToFitDir(bot, prisma, vptRequest) {
-
-        let goalRus = vptRequest.goal;
         let requestVptPhotoId = vptRequest.photo;
         let { visitTime, anketa, comment, history, tags } = vptRequest;
         let screenshotUser = await this.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
@@ -298,6 +301,14 @@ class BotHelper {
         // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
         let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${fitDirChatId}@${messageId}`;
         await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
+
+        // Добавляем клавиатуру с тренерами
+        await this.addKeyboard(prisma, bot, messageId, vptRequest, fitDirUser);
+    }
+
+    static async addKeyboard(prisma, bot, messageId, vptRequest, fitDirUser) {
+        let fitDirChatId = fitDirUser.chatId;
+        let goalRus = vptRequest.goal;
 
         // генерируем клавиатуру с тренерами
         let trainersWithGoal = await this.getUsersByGoal(prisma, goalRus);
@@ -324,6 +335,7 @@ class BotHelper {
         await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
         console.log('keyboard with trainers updated!');
     }
+
 
     static async fetchPhotoWithRetry(photoUrl, retries = 5, delay = 1000) {
         const headers = {
