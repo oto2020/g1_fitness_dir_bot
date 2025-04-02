@@ -46,7 +46,7 @@ class BotHelper {
                     birthDate: new Date(client.birthday).toLocaleDateString("ru-RU"),
                     phone: phone,
                     photoUrl: client.photo,
-                    tags: client.tags.map(tag => `# ${tag.title}`).join('\n')
+                    tags: client.tags.map(tag => `${tag.title}`).join('\n')
                 }
             };
         } catch (error) {
@@ -62,10 +62,18 @@ class BotHelper {
         }
 
         const { ticketsText, client } = clientData;
-        let anketa = `${ticketsText}\n\n${client.name} (${client.birthDate})\n+${client.phone}`;
-        let captionText = `${client.tags}\n\n${anketa}\n\nВаш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
+        let anketa = `${ticketsText}\n${client.name} (${client.birthDate})\n+${client.phone}`;
+        let captionText = `${client.tags}\n\n`+
+            `${anketa}\n\n`+
+            `Ваш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n`+
+            `✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
 
-        const { fileId, messageId } = await this.apiSendPhotoUrl(bot, chatId, client.photoUrl, captionText);
+        let apiSendPhotoObj = await this.apiSendPhotoUrl(bot, chatId, client.photoUrl, captionText);
+        if (!apiSendPhotoObj) {
+            bot.sendMessage(chatId, 'Ошибка при получении фото');
+            return;
+        }
+        const { fileId, messageId } = apiSendPhotoObj;
 
         let inline_keyboard = [
             [
@@ -80,21 +88,75 @@ class BotHelper {
         return { comment, tags: client.tags, anketa, fileId };
     }
 
+    static captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow) {
+        const statusText =
+            vptRequest.status === 'none' ? 'неразобрано'
+                : vptRequest.status === 'accepted' ? 'принято'
+                    : vptRequest.status === 'rejected' ? 'отклонено'
+                        : 'нет статуса';
+    
+        let result = firstRow +
+            `${vptRequest.tags}\n\n` +
+            `${vptRequest.anketa}\n\n` +
+            `✍️  "${vptRequest.comment}"\n` +
+            `${this.goalRusWithEmojii(vptRequest.goal)}\n` +
+            `${this.visitTimeWithEmojii(vptRequest.visitTime)}\n\n` +
+            `Автор: ${screenshotUser?.sender}\n\n` +
+            `${vptRequest.history}\n\n` +
+            `Текущий статус #${vptRequest.id}: ${statusText}` +
+            lastRow;
+    
+        if (result.length > 1000) {
+            result = result.replace(vptRequest.anketa, '...');
+        }
+        if (result.length > 1000) {
+            result = result.replace(vptRequest.history, '...');
+        }
+        
+        return result;
+    }
+    
+    static captionTextForTrainer(firstRow, vptRequest, lastRow) {
+        const statusText =
+            vptRequest.status === 'none' ? 'неразобрано'
+                : vptRequest.status === 'accepted' ? 'принято'
+                    : vptRequest.status === 'rejected' ? 'отклонено'
+                        : 'нет статуса';
+    
+        let result = firstRow +
+            `${vptRequest.anketa}\n\n` +
+            `✍️  "${vptRequest.comment}"\n` +
+            `${this.goalRusWithEmojii(vptRequest.goal)}\n` +
+            `${this.visitTimeWithEmojii(vptRequest.visitTime)}\n\n` +
+            `Текущий статус #${vptRequest.id}: ${statusText}` +
+            lastRow;
+    
+        if (result.length > 1000) {
+            result = result.replace(vptRequest.anketa, '...');
+        }
+        if (result.length > 1000) {
+            result = result.replace(vptRequest.history, '...');
+        }
+        
+        return result;
+    }
+    
+
     // Удаляет тег тренера из 1С
-    static async deleteTag(bot, chatId, prisma, vptRequest) {
+    static async deleteTagForVptRequest(bot, chatId, prisma, vptRequest) {
         try {
             let phoneWithoutPlus = this.parseMessage(vptRequest.phoneNumber)?.phone;
 
             let trainerId = vptRequest.userId;
             if (trainerId) {
                 let trainer = await this.getUserById(prisma, trainerId);
-    
+
                 // Получаем анкету по API
-                const clientData = await this.apiClientData(phoneWithoutPlus);
+                let clientData = await this.apiClientData(phoneWithoutPlus);
                 if (!clientData) {
                     return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
                 }
-    
+
                 // Собираем ТЕГ ТРЕНЕРА
                 let newTag = BotHelper.getTag(trainer.name, vptRequest.goal);
                 // Отправка POST-запроса на /tag
@@ -107,34 +169,80 @@ class BotHelper {
                         usertoken: clientData.passToken
                     }
                 });
+
+                // Обновляем данные, чтобы иметь актуальные теги
+                clientData = await this.apiClientData(phoneWithoutPlus);
+                if (!clientData) {
+                    return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
+                }
+                // актуализируем данные в заявке
+                await this.updateVptRequestTags(prisma, vptRequest.id, clientData.client.tags);
+
                 console.log(`Обновлены данные заявки #${vptRequest.id} Удален тег: ${newTag}`);
             }
         } catch (e) {
             console.error('Не удалось удалить тег тренера из 1С', e);
         }
-        
+
     }
 
     // Отправляет анкету тренеру, ставит тег тренера в 1С
     static async anketaToTrainer(bot, chatId, prisma, trainer, vptRequest) {
         let phoneWithoutPlus = this.parseMessage(vptRequest.phoneNumber)?.phone;
         // Получаем анкету по API
-        const clientData = await this.apiClientData(phoneWithoutPlus);
+        let clientData = await this.apiClientData(phoneWithoutPlus);
         if (!clientData) {
             return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
         }
 
-        // Ставим ТЕГ ТРЕНЕРА
+        //  Задел на будущее. Не трогать! Пока что не работает this.deleteTag
+        // // УДАЛЯЕМ ВСЕ ТЕГИ для goal
+        // let tags = clientData.client.tags.split("\n");
+        // for (let tag of tags) {
+        //     if (tag.startsWith(`ВПТ ${vptRequest.goal}`)) {
+        //         console.log(`Удаляем тег ${tag}`);
+        //         try {
+        //             await this.deleteTag(clientData.passToken, clientData.client.id, tag);
+        //         } catch (e) {
+        //             console.error(e);
+        //         }
+        //     } else {
+        //         console.log(`Оставляем тег ${tag}`);
+        //     }
+        // }
+
+        // Ставим нужный ТЕГ ТРЕНЕРА
         let newTag = BotHelper.getTag(trainer.name, vptRequest.goal);
-        await this.addTag(clientData.passToken, clientData.client.id, newTag);
+        try {
+            console.log(`Ставим тег ${newTag}`);
+            await this.addTag(clientData.passToken, clientData.client.id, newTag);
+        } catch (e) {
+            console.error(e);
+        }
         console.log(`Обновлены данные заявки #${vptRequest.id}, новый userId: ${trainer.id}, новый тег: ${newTag}`);
 
-        const { ticketsText, client } = clientData;
-        let goalRusWithEmojii = this.goalRusWithEmojii(vptRequest.goal);
+        // Обновляем данные, чтобы иметь актуальные теги
+        clientData = await this.apiClientData(phoneWithoutPlus);
+        if (!clientData) {
+            return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
+        }
 
-        let captionText = `${ticketsText}\n${client.name} (${client.birthDate})\n+${client.phone}\n\nЦель: ${goalRusWithEmojii}\nВремя суток: ${vptRequest.visitTime}\n✍️Комментарий:\n${vptRequest.comment}\n\n${this.nowDateTime()}\n🎯 Отправлено ${newTag}`;
+        // актуализируем данные в анкете
+        await this.updateVptRequestAnketa(prisma, vptRequest.id, clientData.client.anketa);
+        await this.updateVptRequestTags(prisma, vptRequest.id, clientData.client.tags);
+        let newHistory = `${vptRequest.history}\n\n${this.nowDateTime()}\n🎯 Отправлено '${newTag}'`;
+        await this.updateVptRequestHistory(prisma, vptRequest.id, newHistory);
 
-        const { fileId, messageId } = await this.apiSendPhotoUrl(bot, trainer.chatId, client.photoUrl, captionText);
+        const { client } = clientData;
+
+        let firstRow = `Тренер @${trainer.nick} взять клиента на ВПТ\n\n`;
+        let captionText = this.captionTextForTrainer(firstRow, vptRequest, '');
+        let apiSendPhotoObj = await this.apiSendPhotoUrl(bot, trainer.chatId, client.photoUrl, captionText);
+        if (!apiSendPhotoObj) {
+            bot.sendMessage(chatId, 'Ошибка при получении фото');
+            return;
+        }
+        const { messageId } = apiSendPhotoObj;
 
         // Обновляем кнопки
         let inline_keyboard_for_trainer = [
@@ -156,17 +264,20 @@ class BotHelper {
         let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${trainer.chatId}@${messageId}`;
         await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
         await this.updateVptRequestUserId(prisma, vptRequest.id, trainer.id);
-        await this.updateVptRequestComment(prisma, vptRequest.id, captionText);
-  
-        bot.sendMessage(chatId, `Заявка направлена тренеру # ${newTag}\nПросмотр: /vpt_request_show${vptRequest.id}`);
+
+        bot.sendMessage(chatId, `Отправлено ${newTag}\nПросмотр: /vpt_request_show${vptRequest.id}`);
 
         return messageId;
     }
 
 
     // Передаем анкету фитнес-директору
-    static async anketaTrainerChoosingToFitDir(bot, prisma, anketa, comment, tag, requestVptPhotoId, goal, visitTime, authorTelegramUserInfo, phoneWithoutPlus, vptRequest) {
+    static async anketaToFitDir(bot, prisma, vptRequest) {
 
+        let goalRus = vptRequest.goal;
+        let requestVptPhotoId = vptRequest.photo;
+        let { visitTime, anketa, comment, history, tags } = vptRequest;
+        let screenshotUser = await this.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
         console.log('Ща отправим фото и мегакоммент с кнопками выбора тренеров');
 
         let fitDirUser = await this.getFitDirUser(prisma);
@@ -177,11 +288,9 @@ class BotHelper {
         let fitDirChatId = fitDirUser.chatId;
 
         // отправляем ФИТДИРУ сообщение с фото, пока без кнопок
-        let goalRusWithEmojii = this.goalRusWithEmojii(goal);
-        let requestVptComment = `${tag}\n\n${anketa}\n\nКомментарий к заявке:\n✍️  ${comment}`;
-        let captionText = `Назначить тренера @${fitDirUser.nick}\n${requestVptComment}\nЦель: ${goalRusWithEmojii}\nВремя: ${visitTime}\nАвтор: ${authorTelegramUserInfo}`;
+        let firstRow = `ФД @${fitDirUser.nick} назначить тренера \n\n`;
         const sentMessage = await bot.sendPhoto(fitDirChatId, requestVptPhotoId, {
-            caption: captionText
+            caption: this.captionTextForFitDir(firstRow, vptRequest, screenshotUser, '')
         });
         let messageId = sentMessage.message_id; // Возвращаем ID отправленного сообщения
 
@@ -190,22 +299,17 @@ class BotHelper {
         let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${fitDirChatId}@${messageId}`;
         await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
 
-        // генерируем клаиатуру с тренерами
-        let goalRus = this.goalRus(goal);
+        // генерируем клавиатуру с тренерами
         let trainersWithGoal = await this.getUsersByGoal(prisma, goalRus);
         trainersWithGoal = trainersWithGoal.map(el => { return { name: el.name, chatId: el.chatId, telegramID: el.telegramID }; });
         let buttonsPerRow = 3;
         let inline_keyboard = [];
         let row = [];
-        let isDeleting = false; // заявка удаляется из БД
         trainersWithGoal.forEach((trainer, index) => {
             row.push({
                 text: trainer.name,
-                //messageId чтобы перерисовать кнопки типа отправлено тренеру Ващенко
-                //trainer.chatId чтобы было понятно какому тренеру в какой чат слать анкету с клиентом
-                callback_data: ['vs', isDeleting, messageId, trainer.chatId, vptRequest.id].join('@')
+                callback_data: ['vs', messageId, trainer.chatId, vptRequest.id].join('@')
             });
-
             if (row.length === buttonsPerRow || index === trainersWithGoal.length - 1) {
                 inline_keyboard.push(row);
                 row = [];
@@ -213,43 +317,43 @@ class BotHelper {
         });
 
         // Добавляем кнопку закрытия в отдельный ряд
-        isDeleting = true;
         inline_keyboard.push([
             { text: "🗑 Удалить заявку", callback_data: ['vpt_delete', vptRequest.id].join('@') } // Удаление заявки ВПТ 
         ]);
 
         await this.updateInlineKeyboard(bot, fitDirChatId, messageId, inline_keyboard);
         console.log('keyboard with trainers updated!');
-
     }
 
-    static extractComment(text) {
-        if (!text) return '';
+    static async fetchPhotoWithRetry(photoUrl, retries = 5, delay = 1000) {
+        const headers = {
+            'Authorization': process.env.AUTHORIZATION,
+            'apikey': process.env.API_KEY
+        };
 
-        const match = text.match(/Комментарий к заявке:\n([\s\S]*)/);
-        return match ? match[1].trim() : '';
-    }
+        for (let i = 0; i < retries; i++) {
+            try {
+                const response = await axios.get(photoUrl, {
+                    headers,
+                    responseType: 'arraybuffer'
+                });
 
-    // Функция обновления текста кнопки
-    static async updateButtonText(bot, chatId, messageId, inlineKeyboard, targetCallbackData, newText) {
-        try {
-            if (!inlineKeyboard) return;
-
-            // Обновляем текст нужной кнопки
-            let updatedKeyboard = inlineKeyboard.map(row =>
-                row.map(button =>
-                    button.callback_data === targetCallbackData ? { ...button, text: newText } : button
-                )
-            );
-
-            // Редактируем клавиатуру
-            await bot.editMessageReplyMarkup({ inline_keyboard: updatedKeyboard }, { chat_id: chatId, message_id: messageId });
-
-        } catch (error) {
-            console.error('Ошибка при изменении кнопки:', error);
+                const filePath = path.join(__dirname, 'photo.jpg');
+                fs.writeFileSync(filePath, response.data);
+                console.log('Файл успешно загружен:', filePath);
+                return filePath;
+            } catch (error) {
+                console.error(`Попытка ${i + 1} не удалась:`, error.message);
+                if (i < retries - 1) {
+                    const waitTime = delay * Math.pow(2, i);
+                    console.log(`Ожидание ${waitTime} мс перед следующей попыткой...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                } else {
+                    console.error('Все попытки исчерпаны. Не удалось загрузить фото.');
+                }
+            }
         }
     }
-
     // Функция отправки изображения с captionText в чат cahtId и возвращает fileId (фото телеграм)  и messageId (id сообщения в чате)
     static async apiSendPhotoUrl(bot, chatId, photoUrl, captionText) {
         try {
@@ -259,17 +363,8 @@ class BotHelper {
                 // Если URL пустой, используем локальный файл g1.jpeg
                 filePath = path.join(__dirname, 'g1.jpeg');
             } else {
-                const headers = {
-                    'Authorization': process.env.AUTHORIZATION,
-                    'apikey': process.env.API_KEY
-                };
-                const response = await axios.get(photoUrl, {
-                    headers,
-                    responseType: 'arraybuffer'
-                });
-
-                filePath = path.join(__dirname, 'photo.jpg');
-                fs.writeFileSync(filePath, response.data);
+                let apiFilePath = await this.fetchPhotoWithRetry(photoUrl);
+                filePath = apiFilePath || filePath;
             }
 
             const sentMessage = await bot.sendPhoto(chatId, filePath, {
@@ -286,8 +381,8 @@ class BotHelper {
 
             return { fileId, messageId };
         } catch (error) {
-            console.error('Ошибка загрузки фото:', error);
             bot.sendMessage(chatId, 'Не удалось загрузить фото.');
+            console.error('Ошибка загрузки фото:', error);
             return null;
         }
     }
@@ -344,7 +439,21 @@ class BotHelper {
         });
     }
 
-
+    // удалить тег
+    static async deleteTag(userToken, clientId, tag) {
+        const tagUrl = `https://${process.env.API_HOSTNAME}:${process.env.API_PORT}${process.env.API_PATH}/tag?tag=${tag}&client_id=${clientId}`;
+        await axios.delete(tagUrl, {
+            tag: tag,
+            client_id: clientId
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                apikey: process.env.API_KEY,
+                Authorization: process.env.AUTHORIZATION,
+                usertoken: userToken
+            }
+        });
+    }
 
     // Текст с информацией о членствах/пакетах/услугах
     static async getTicketsText(passToken) {
@@ -502,6 +611,19 @@ class BotHelper {
         return user;
     }
 
+    static async getScreenshotUserById(prisma, id) {
+        if (!id) {
+            console.error("ID не задан");
+            return null;
+        }
+
+        const user = await prisma.screenshotUser.findUnique({
+            where: { uniqueId: id }
+        });
+
+        return user;
+    }
+
     static async getVPTRequestById(prisma, id) {
         try {
             const vptRequest = await prisma.vPTRequest.findUnique({
@@ -529,7 +651,7 @@ class BotHelper {
     }
 
 
-    static async createVPTRequest(prisma, userId, screenshotUserId, visitTime, phoneNumber, photo, comment, goal, tgChatMessageId) {
+    static async createVPTRequest(prisma, userId, screenshotUserId, visitTime, phoneNumber, photo, comment, anketa, history, tags, goal, tgChatMessageId) {
         const vptRequest = await prisma.vPTRequest.create({
             data: {
                 user: userId ? { connect: { id: userId } } : undefined, // Связываем user, если userId указан
@@ -540,6 +662,9 @@ class BotHelper {
                 phoneNumber,
                 photo,
                 comment,
+                anketa,
+                history,
+                tags,
                 goal,
                 tgChatMessageId
             }
@@ -559,6 +684,47 @@ class BotHelper {
             return updatedRequest;
         } catch (error) {
             console.error(`Ошибка обновления tgChatMessageId для vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
+
+
+    static async updateVptRequestAnketa(prisma, id, anketa) {
+        try {
+            const updatedRequest = await prisma.vPTRequest.update({
+                where: { id },
+                data: { anketa }
+            });
+
+            return updatedRequest;
+        } catch (error) {
+            console.error(`Ошибка обновления anketa для vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
+    static async updateVptRequestTags(prisma, id, tags) {
+        try {
+            const updatedRequest = await prisma.vPTRequest.update({
+                where: { id },
+                data: { tags }
+            });
+
+            return updatedRequest;
+        } catch (error) {
+            console.error(`Ошибка обновления tags для vPTRequest с id ${id}:`, error);
+            return null;
+        }
+    }
+    static async updateVptRequestHistory(prisma, id, history) {
+        try {
+            const updatedRequest = await prisma.vPTRequest.update({
+                where: { id },
+                data: { history }
+            });
+
+            return updatedRequest;
+        } catch (error) {
+            console.error(`Ошибка обновления history для vPTRequest с id ${id}:`, error);
             return null;
         }
     }
@@ -591,19 +757,6 @@ class BotHelper {
         }
     }
 
-    static async updateVptRequestComment(prisma, id, comment) {
-        try {
-            const updatedRequest = await prisma.vPTRequest.update({
-                where: { id },
-                data: { comment: comment }
-            });
-
-            return updatedRequest;
-        } catch (error) {
-            console.error(`Ошибка обновления userId для vPTRequest с id ${id}:`, error);
-            return null;
-        }
-    }
 
     // Создает отправителя заявки в БД
     static async checkOrCreateScreenshotUser(prisma, telegramID, telegramNickname) {
@@ -646,13 +799,22 @@ class BotHelper {
 
     static goalRusWithEmojii(goal) {
         let goalRus = goal;
-        if (goal === 'tz') { goalRus = '🏋🏼‍♂️ ТЗ'; }
-        if (goal === 'gp') { goalRus = '🤸🏻‍♀️ ГП'; }
-        if (goal === 'aq') { goalRus = '🏊 Аква'; }
+        if (goal === 'tz' || goal === 'ТЗ') { goalRus = '🏋🏼‍♂️ ТЗ'; }
+        if (goal === 'gp' || goal === 'ГП') { goalRus = '🤸🏻‍♀️ ГП'; }
+        if (goal === 'aq' || goal === 'Аква') { goalRus = '🏊 Аква'; }
         return goalRus;
     }
 
-    static getTag(tarinerName, goal) {
+    static visitTimeWithEmojii(visitTime) {
+        let result = visitTime;
+        if (visitTime === 'Утро') { result = '🌅 Утро'; }
+        if (visitTime === 'Обед') { result = '☀️ Обед'; }
+        if (visitTime === 'Вечер') { result = '🌙 Вечер'; }
+        if (visitTime === 'Весь день') { result = '🌍 Весь день'; }
+        return result;
+    }
+
+    static getTag(tarinerName, goalRus) {
         if (!tarinerName) return '';
         const parts = tarinerName.trim().split(/\s+/);
         if (parts.length === 0) return '';
@@ -660,7 +822,7 @@ class BotHelper {
         const lastName = parts[0]; // Первая часть - фамилия
         const initials = parts.slice(1).map(name => name[0] + '.').join(''); // Первые буквы остальных имен
 
-        return `ВПТ ${goal} ${lastName} ${initials}`;
+        return `ВПТ ${goalRus} ${lastName} ${initials}`;
     }
 
 }
