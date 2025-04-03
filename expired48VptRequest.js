@@ -19,6 +19,8 @@ async function processExpiredRequests() {
             },
         });
 
+        console.table(expiredRequests);
+
         if (expiredRequests.length === 0) {
             console.log(`[${new Date().toLocaleString()}] Нет просроченных заявок со статусом "none".`);
             return;
