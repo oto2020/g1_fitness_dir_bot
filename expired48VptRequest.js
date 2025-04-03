@@ -27,7 +27,7 @@ async function processExpiredRequests() {
             return;
         }
 
-        console.log(`[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
+        console.log(`[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...\n(${expiredRequests.map(el=>'#'+el.id).join(', ')})`);
 
         bot.sendMessage(process.env.GROUP_ID, `[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
 
