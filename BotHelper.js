@@ -147,7 +147,7 @@ class BotHelper {
 
 
     // Удаляет тег тренера из 1С
-    static async deleteTagForVptRequest(bot, chatId, prisma, vptRequest) {
+    static async deleteTagForVptRequest(prisma, vptRequest) {
         try {
             let phoneWithoutPlus = this.parseMessage(vptRequest.phoneNumber)?.phone;
 
@@ -158,7 +158,7 @@ class BotHelper {
                 // Получаем анкету по API
                 let clientData = await this.apiClientData(phoneWithoutPlus);
                 if (!clientData) {
-                    return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
+                    return ;
                 }
 
                 // Собираем ТЕГ ТРЕНЕРА
@@ -177,7 +177,7 @@ class BotHelper {
                 // Обновляем данные, чтобы иметь актуальные теги
                 clientData = await this.apiClientData(phoneWithoutPlus);
                 if (!clientData) {
-                    return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
+                    return;
                 }
                 // актуализируем данные в заявке
                 await this.updateVptRequestTags(prisma, vptRequest.id, clientData.client.tags);

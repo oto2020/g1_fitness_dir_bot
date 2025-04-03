@@ -793,7 +793,7 @@ bot.on('callback_query', async (query) => {
             await BotHelper.deleteMessage(bot, chatId, messageId);
             console.log(`Удалено сообщение ${chatId}@${messageId}`);
         }
-        await BotHelper.deleteTagForVptRequest(bot, chatId, prisma, vptRequest);
+        await BotHelper.deleteTagForVptRequest(prisma, vptRequest);
         await BotHelper.deleteVPTRequestById(prisma, vptRequestId);
         bot.sendMessage(chatId, `⚠️ Удалена заявка\n${vptRequest.phoneNumber} ${vptRequest.comment}\nЦель: ${vptRequest.goal}\nВремя: ${vptRequest.visitTime}`);
     }
@@ -853,7 +853,7 @@ bot.on('callback_query', async (query) => {
                     vptRequest = await BotHelper.updateVptRequestHistory(prisma, queryId, `${vptRequest.history}\n\n${BotHelper.nowDateTime()}\n❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"`);
 
                     // удаляем тег тренера из 1С и актуализируем теги в vptRequest
-                    await BotHelper.deleteTagForVptRequest(bot, chatId, prisma, vptRequest);
+                    await BotHelper.deleteTagForVptRequest(prisma, vptRequest);
 
                     // Отправляем в чат группы
                     let firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Назначить другого тренера\n\n`;
@@ -862,11 +862,6 @@ bot.on('callback_query', async (query) => {
                     let captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow);
                     // Отправляем, сохраняем сообщение для удаления
                     await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, process.env.GROUP_ID, captionText);
-
-                    // Чтобы потом можно было удалить сообщение вместе с заявкой
-                    // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
-                    let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${trainer.chatId}@${messageId}`;
-                    await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
 
                     // Отправляем ФитДиру
                     let fitDirUser = await BotHelper.getFitDirUser(prisma);
@@ -894,6 +889,7 @@ bot.on('callback_query', async (query) => {
                     // Удаляем обработчик после получения причины
                     bot.removeListener('message', rejectionHandler);
                 } catch (e) {
+                    console.error(e);
                     bot.sendMessage(chatId, 'Ошибка при отклонении заявки');
                 }
             }

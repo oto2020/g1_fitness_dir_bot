@@ -30,6 +30,17 @@ async function processExpiredRequests() {
 
         for (const vptRequest of expiredRequests) {
             try {
+                // Нужно удалять все сообщения, а потом направлять ФитДиру
+                let tgVptChatMessages = vptRequest.tgChatMessageId?.split('|');
+                for (const vptTgChatMessage of tgVptChatMessages) {
+                    let [chatId, messageId] = vptTgChatMessage.split('@');
+                    await BotHelper.deleteMessage(bot, chatId, messageId);
+                    console.log(`Удалено сообщение ${chatId}@${messageId}`);
+                }
+                // Удалять тег тренера
+                await BotHelper.deleteTagForVptRequest(prisma, vptRequest);
+
+                // Отправляем Анкету Фитдиру. Это будет первое сообщение
                 await BotHelper.anketaToFitDir(bot, prisma, vptRequest);
                 console.log(`✅ Заявка ID ${vptRequest.id} успешно отправлена фитнес-директору.`);
             } catch (error) {
