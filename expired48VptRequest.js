@@ -21,14 +21,15 @@ async function processExpiredRequests() {
 
         console.table(expiredRequests.map(el=> { return {id: el.id, userId: el.userId, comment: el.comment, goal: el.goal, visitTime: el.visitTime}}));
         
+        let nowDateTime = BotHelper.nowDateTime();
         if (expiredRequests.length === 0) {
-            console.log(`[${new Date().toLocaleString()}] Нет просроченных заявок со статусом "none".`);
+            console.log(`[${nowDateTime}] Нет просроченных заявок со статусом "none".`);
             return;
         }
 
-        console.log(`[${new Date().toLocaleString()}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
+        console.log(`[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
 
-        bot.sendMessage(process.env.GROUP_ID, `[${new Date().toLocaleString()}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
+        bot.sendMessage(process.env.GROUP_ID, `[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
 
         for (const vptRequest of expiredRequests) {
             try {
