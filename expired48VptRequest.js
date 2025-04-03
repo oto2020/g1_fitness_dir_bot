@@ -19,8 +19,8 @@ async function processExpiredRequests() {
             },
         });
 
-        console.table(expiredRequests);
-
+        console.table(expiredRequests.map(el=> { return {id: el.id, userId: el.userId, comment: el.comment, goal: el.goal, visitTime: el.visitTime}}));
+        
         if (expiredRequests.length === 0) {
             console.log(`[${new Date().toLocaleString()}] Нет просроченных заявок со статусом "none".`);
             return;
@@ -43,7 +43,7 @@ async function processExpiredRequests() {
                 // Уведомляем тренера с фото заявки
                 try {
                     let badTrainer = await BotHelper.getUserById(prisma, vptRequest.userId);
-                    await bot.sendPhoto(badTrainer.chatId, vptRequest.photo, { caption: `⚠️ Вы просрочили заявку #${vptRequest.id}, она возвращена на распределение и будет передана другому тренеру.\n${badTrainer.name} (@${badTrainer.nick}), ваша эффективность снижена, так как клиенту пришлось ждать более 2 суток, когда вы возьмете его на ВПТ или передадите обратно на распределение.`});
+                    await bot.sendPhoto(badTrainer.chatId, vptRequest.photo, { caption: `⚠️ Вы просрочили заявку #${vptRequest.id}\n\nОна возвращена на распределение и будет передана другому тренеру.\n\n${badTrainer.name} (@${badTrainer.nick}), ваша эффективность снижена, так как заинтересованный клиент вынужден ждать более 2 суток...`});
                 } catch (e) {
                     console.error(e);
                 }
