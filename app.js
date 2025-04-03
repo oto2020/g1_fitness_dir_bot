@@ -832,7 +832,8 @@ bot.on('callback_query', async (query) => {
             let lastRow = `\n\nТренер: ${trainer.name}`;
             let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
             let captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow);
-            bot.sendPhoto(process.env.GROUP_ID, vptRequest.photo, { caption: captionText });
+            // Отправляем, сохраняем сообщение для удаления
+            await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, process.env.GROUP_ID, captionText);
         }
         if (queryValue === 'rejected') {
             bot.sendMessage(chatId, 'Кажется вы промахнулись... \nВы всё ещё можете принять заявку, нажав на соответствующую кнопку ✅ выше.\n\nЕсли желаете отклонить заявку опишите причину, почему вы отказываетесь 🙂');
@@ -859,13 +860,20 @@ bot.on('callback_query', async (query) => {
                     let lastRow = `\n\nТренер: ${trainer.name}`;
                     let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
                     let captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow);
-                    bot.sendPhoto(process.env.GROUP_ID, vptRequest.photo, { caption: captionText });
+                    // Отправляем, сохраняем сообщение для удаления
+                    await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, process.env.GROUP_ID, captionText);
+
+                    // Чтобы потом можно было удалить сообщение вместе с заявкой
+                    // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
+                    let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${trainer.chatId}@${messageId}`;
+                    await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
 
                     // Отправляем ФитДиру
                     let fitDirUser = await BotHelper.getFitDirUser(prisma);
                     firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\nФД @${fitDirUser.nick}\n⚠️ Назначить другого тренера\n\n`;
                     captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, ``);
-                    let sentMessage = await bot.sendPhoto(fitDirUser.chatId, vptRequest.photo, { caption: captionText });
+                    // Отправляем, сохраняем сообщение для удаления
+                    let { sentMessage } = await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, fitDirUser.chatId, captionText);
                     // Добавляем клавиатуру с тренерами
                     await BotHelper.addKeyboard(prisma, bot, sentMessage.message_id, vptRequest, fitDirUser);
 

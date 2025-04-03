@@ -737,6 +737,21 @@ class BotHelper {
         return vptRequest;
     }
 
+    // Отправляет сообщение и обновляет историю
+    static async anketaForVptRequest (bot, prisma, vptRequest, chatId, captionText) {
+        try {
+            let sentMessage = await bot.sendPhoto(chatId, vptRequest.photo, { caption: captionText });   
+            // Чтобы потом можно было удалить сообщение вместе с заявкой
+            // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
+            let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${chatId}@${sentMessage.message_id}`;
+            vptRequest = await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
+            return { sentMessage, vptRequest }
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+
+    }
     // обновляет поле tgChatMessageId для заявки на ВПТ
     static async updateVptRequestTgChatMessageId(prisma, id, tgChatMessageId) {
         try {
