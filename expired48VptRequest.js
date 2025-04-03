@@ -40,6 +40,10 @@ async function processExpiredRequests() {
                 // Удалять тег тренера
                 await BotHelper.deleteTagForVptRequest(prisma, vptRequest);
 
+                // Обновить историю
+                let newHistory = `${vptRequest.history}\n\n${BotHelper.nowDateTime()}\n⚠️ ЗАЯВКА ПРОСРОЧЕНА`;
+                await this.updateVptRequestHistory(prisma, vptRequest.id, newHistory);
+
                 // Отправляем Анкету Фитдиру. Это будет первое сообщение
                 await BotHelper.anketaToFitDir(bot, prisma, vptRequest);
                 console.log(`✅ Заявка ID ${vptRequest.id} успешно отправлена фитнес-директору.`);
