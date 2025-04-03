@@ -42,7 +42,7 @@ async function processExpiredRequests() {
 
                 // Обновить историю
                 let newHistory = `${vptRequest.history}\n\n${BotHelper.nowDateTime()}\n⚠️ ЗАЯВКА ПРОСРОЧЕНА`;
-                await this.updateVptRequestHistory(prisma, vptRequest.id, newHistory);
+                await BotHelper.updateVptRequestHistory(prisma, vptRequest.id, newHistory);
 
                 // Отправляем Анкету Фитдиру. Это будет первое сообщение
                 await BotHelper.anketaToFitDir(bot, prisma, vptRequest);
