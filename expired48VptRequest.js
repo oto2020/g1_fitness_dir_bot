@@ -19,17 +19,19 @@ async function processExpiredRequests() {
             },
         });
 
-        console.table(expiredRequests.map(el=> { return {id: el.id, userId: el.userId, comment: el.comment, goal: el.goal, visitTime: el.visitTime}}));
-        
+        console.table(expiredRequests.map(el => { return { id: el.id, userId: el.userId, comment: el.comment, goal: el.goal, visitTime: el.visitTime } }));
+
         let nowDateTime = BotHelper.nowDateTime();
         if (expiredRequests.length === 0) {
             console.log(`[${nowDateTime}] Нет просроченных заявок со статусом "none".`);
             return;
         }
 
-        console.log(`[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...\n(${expiredRequests.map(el=>('#' + el.id).join(', '))})`);
+        let ids = expiredRequests.map(el => ('#' + el.id));
+        let msg = `[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...\n${ids.join(' ')}`;
+        console.log(msg);
 
-        bot.sendMessage(process.env.GROUP_ID, `[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...`);
+        bot.sendMessage(process.env.GROUP_ID, msg);
 
         for (const vptRequest of expiredRequests) {
             try {
@@ -44,7 +46,9 @@ async function processExpiredRequests() {
                 // Уведомляем тренера с фото заявки
                 try {
                     let badTrainer = await BotHelper.getUserById(prisma, vptRequest.userId);
-                    await bot.sendPhoto(badTrainer.chatId, vptRequest.photo, { caption: `⚠️ Вы просрочили заявку #${vptRequest.id}\n\nОна возвращена на распределение и будет передана другому тренеру.\n\n${badTrainer.name} (@${badTrainer.nick}), ваша эффективность снижена, так как заинтересованный клиент вынужден ждать более 2 суток...`});
+                    if (badTrainer) {
+                        await bot.sendPhoto(badTrainer.chatId, vptRequest.photo, { caption: `⚠️ Вы просрочили заявку #${vptRequest.id}\n\nОна возвращена на распределение и будет передана другому тренеру.\n\n${badTrainer.name} (@${badTrainer.nick}), ваша эффективность снижена, так как заинтересованный клиент вынужден ждать более 2 суток...` });
+                    }
                 } catch (e) {
                     console.error(e);
                 }

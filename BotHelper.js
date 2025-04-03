@@ -114,6 +114,9 @@ class BotHelper {
         if (result.length > 1000) {
             result = result.replace(vptRequest.history, '...');
         }
+        if (result.length > 1000) {
+            result = result.replace(vptRequest.comment, `... ${vptRequest.phone} ...`);
+        }
 
         return result;
     }
@@ -140,11 +143,25 @@ class BotHelper {
         if (result.length > 1000) {
             result = result.replace(vptRequest.history, '...');
         }
+        if (result.length > 1000) {
+            result = result.replace(vptRequest.comment, `... ${vptRequest.phone} ...`);
+        }
 
         return result;
     }
 
 
+    // Возвращает vptReuest заявки, которая уже существует с phoneNumber, goal, visitTime
+    static async checkVPTRequestExists(prisma, phoneNumber, goal, visitTime) {
+        const existingRequest = await prisma.vPTRequest.findFirst({
+            where: {
+                phoneNumber: phoneNumber,
+                goal: goal,
+                visitTime: visitTime
+            }
+        });
+        return existingRequest;
+    }
 
     // Удаляет тег тренера из 1С
     static async deleteTagForVptRequest(prisma, vptRequest) {
@@ -295,9 +312,15 @@ class BotHelper {
 
         // отправляем ФИТДИРУ сообщение с фото, пока без кнопок
         let firstRow = `ФД @${fitDirUser.nick} назначить тренера \n\n`;
-        const sentMessage = await bot.sendPhoto(fitDirChatId, requestVptPhotoId, {
-            caption: this.captionTextForFitDir(firstRow, vptRequest, screenshotUser, '')
-        });
+        let captionText = this.captionTextForFitDir(firstRow, vptRequest, screenshotUser, '');
+        let sentMessage = '';
+        try {
+            sentMessage = await bot.sendPhoto(fitDirChatId, requestVptPhotoId, {
+                caption: captionText
+            });
+        } catch (e) {
+            sentMessage = await bot.sendMessage(fitDirChatId, 'Не удалось загрузить фото\n\n' + captionText);
+        }
         let messageId = sentMessage.message_id; // Возвращаем ID отправленного сообщения
 
         // Чтобы потом можно было удалить сообщение вместе с заявкой
@@ -408,7 +431,7 @@ class BotHelper {
         try {
             await bot.deleteMessage(chatId, messageId);
         } catch (error) {
-            console.error("Ошибка удаления сообщения:", error);
+            console.error("Ошибка удаления сообщения:");
         }
     }
     // Зная обновляет клавиатуру под сообщением
@@ -740,7 +763,13 @@ class BotHelper {
     // Отправляет сообщение и обновляет историю
     static async anketaForVptRequest (bot, prisma, vptRequest, chatId, captionText) {
         try {
-            let sentMessage = await bot.sendPhoto(chatId, vptRequest.photo, { caption: captionText });   
+            let sentMessage = '';
+            try {
+                sentMessage = await bot.sendPhoto(chatId, vptRequest.photo, { caption: captionText }); 
+            } catch (e) {
+                sentMessage = await bot.sendMessage(chatId, 'Не удалось загрузить фото\n\n' + captionText);
+            }
+
             // Чтобы потом можно было удалить сообщение вместе с заявкой
             // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
             let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${chatId}@${sentMessage.message_id}`;

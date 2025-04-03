@@ -690,9 +690,14 @@ bot.on('callback_query', async (query) => {
 
                 if (visitTime) {
                     try {
+                        let phoneWithoutPlus = param4;
+                        let existingVptRequest = await BotHelper.checkVPTRequestExists(prisma, '+' + phoneWithoutPlus, goalRus, visitTime);
+                        if (existingVptRequest) {
+                            bot.sendMessage(chatId, `Заявка уже существует для +${phoneWithoutPlus}, ${goalRus}, ${visitTime}\nПросмотр: /vpt_request_show${existingVptRequest.id}`);
+                            return;
+                        }
                         // Никнейми и ФИО того, кто нажал на кнопку
                         const authorTelegramUserInfo = BotHelper.getQueryTelegramUserInfo(query);
-                        let phoneWithoutPlus = param4;
 
                         // из массива получаем данные
                         let anketa = anketas[phoneWithoutPlus] || '';
@@ -1288,7 +1293,8 @@ bot.onText(/\/vpt_request_show(\d+)/, async (msg, match) => {
         return;
     }
     // отправляем анкету себе тому, кто использовал эту команду
-    let fitDirFlag = true;
+    let fitDirFlag = false;
+    if (user.role === 'админ') fitDirFlag = true;
     let messageId = await sendSingleVPTRequestMessage(fitDirFlag, bot, chatId, user, user, vptRequest);
     if (messageId) {
         try {
