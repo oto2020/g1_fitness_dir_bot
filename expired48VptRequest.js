@@ -51,6 +51,9 @@ async function processExpiredRequests() {
                 // Удалять тег тренера
                 await BotHelper.deleteTagForVptRequest(prisma, vptRequest);
 
+                // Обнулять тренера в заявке
+                await BotHelper.updateVptRequestUserId(prisma, vptRequest.id, null);
+
                 // Обновить историю
                 let newHistory = `${vptRequest.history}\n\n${BotHelper.nowDateTime()}\n⚠️ ЗАЯВКА ПРОСРОЧЕНА`;
                 await BotHelper.updateVptRequestHistory(prisma, vptRequest.id, newHistory);
