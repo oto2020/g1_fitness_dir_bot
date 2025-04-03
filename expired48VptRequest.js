@@ -39,6 +39,15 @@ async function processExpiredRequests() {
                     await BotHelper.deleteMessage(bot, chatId, messageId);
                     console.log(`Удалено сообщение ${chatId}@${messageId}`);
                 }
+
+                // Уведомляем тренера с фото заявки
+                try {
+                    let badTrainer = await BotHelper.getUserById(prisma, vptRequest.userId);
+                    await bot.sendPhoto(badTrainer.chatId, vptRequest.photo, { caption: `⚠️ Вы просрочили заявку #${vptRequest.id}, она возвращена на распределение и будет передана другому тренеру.\n${badTrainer.name} (@${badTrainer.nick}), ваша эффективность снижена, так как клиенту пришлось ждать более 2 суток, когда вы возьмете его на ВПТ или передадите обратно на распределение.`});
+                } catch (e) {
+                    console.error(e);
+                }
+
                 // Удалять тег тренера
                 await BotHelper.deleteTagForVptRequest(prisma, vptRequest);
 
