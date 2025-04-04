@@ -820,13 +820,18 @@ bot.on('callback_query', async (query) => {
             let vptRequest = request;
 
             // Уведомление тренеру 
-            let alertText = vptRequest.status !== 'accepted' ?
+            let vptStatusNotAccepted = vptRequest.status !== 'accepted';
+            let alertText = vptStatusNotAccepted ?
                 `✅ Спасибо! Заявка #${vptRequest.id} взята в работу` :
                 `✅ Вы уже взяли заявку #${vptRequest.id} в работу...`;
             bot.answerCallbackQuery(query.id, {
                 text: alertText,
                 show_alert: true // true - показывает всплывающее окно
             });
+            // заявка уже принята
+            if (!vptStatusNotAccepted) {
+                return;
+            }
 
             // обновляем статус и историю заявки
             vptRequest = await updateVPTRequestStatus(prisma, queryId, 'accepted');
