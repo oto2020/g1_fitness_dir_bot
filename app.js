@@ -701,7 +701,7 @@ bot.on('callback_query', async (query) => {
                         let phoneWithoutPlus = param4;
                         let existingVptRequest = await BotHelper.checkVPTRequestExists(prisma, '+' + phoneWithoutPlus, goalRus);
                         if (existingVptRequest) {
-                            bot.sendMessage(chatId, `Заявка уже существует для +${phoneWithoutPlus}, ${goalRus}\nПросмотр: /vpt_request_show${existingVptRequest.id}`);
+                            bot.sendMessage(chatId, `Заявка уже существует для +${phoneWithoutPlus}, ${goalRus}\nПросмотр: /vpt${existingVptRequest.id}`);
                             return;
                         }
                         // Никнейми и ФИО того, кто нажал на кнопку
@@ -846,10 +846,18 @@ bot.on('callback_query', async (query) => {
             vptRequest = await BotHelper.updateVptRequestHistory(prisma, queryId, `${vptRequest.history}\n\n${BotHelper.nowDateTime()}\n✅ Взято в работу ${BotHelper.getTag(trainer.name, vptRequest.goal)}`);
 
             // Отправляем в чат группы
-            let firstRow = `✅ Заявка взята в работу\n\n`;
-            let lastRow = `\n\nТренер: ${trainer.name}`;
-            let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
-            let captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, lastRow);
+            // let firstRow = `✅ Заявка взята в работу\n\n`;
+            // let lastRow = `\n\nТренер: ${trainer.name}`;
+            // let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
+            // let captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, lastRow);
+            let goalRusWithEmojii = BotHelper.goalRusWithEmojii(vptRequest.goal);
+            let visitTimeWithEmojii = BotHelper.visitTimeWithEmojii(vptRequest.visitTime);
+            let captionText = 
+                `✅ Заявка #${vptRequest.id} взята в работу\n\n` + 
+                `Тренер: ${trainer.name}\n\n` +
+                `Цель: ${goalRusWithEmojii}\n\n` +
+                `Время: ${visitTimeWithEmojii}\n\n` +
+                `Телефон клиента: ${vptRequest.phoneNumber}`;
             // Отправляем, сохраняем сообщение для удаления
             await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, process.env.GROUP_ID, captionText);
         }
@@ -874,14 +882,18 @@ bot.on('callback_query', async (query) => {
                     await BotHelper.deleteTagForVptRequest(prisma, vptRequest);
 
                     // Отправляем в чат группы
-                    let firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Назначить другого тренера\n\n`;
-                    let lastRow = `\n\nТренер: ${trainer.name}`;
-                    let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
-                    let captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, lastRow);
-                    // Отправляем, сохраняем сообщение для удаления
+                    let goalRusWithEmojii = BotHelper.goalRusWithEmojii(vptRequest.goal);
+                    let visitTimeWithEmojii = BotHelper.visitTimeWithEmojii(vptRequest.visitTime);
+                    let captionText = 
+                        `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Отправлено ФитДиру назначить другого тренера\n\n` + 
+                        `Тренер: ${trainer.name}\n\n` +
+                        `Цель: ${goalRusWithEmojii}\n\n` +
+                        `Время: ${visitTimeWithEmojii}\n\n` +
+                        `Телефон клиента: ${vptRequest.phoneNumber}`;
                     await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, process.env.GROUP_ID, captionText);
 
                     // Отправляем ФитДиру
+                    let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
                     let fitDirUser = await BotHelper.getFitDirUser(prisma);
                     firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\nФД @${fitDirUser.nick}\n⚠️ Назначить другого тренера\n\n`;
                     captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, ``);
@@ -1293,7 +1305,7 @@ async function sendSingleVPTRequestMessage(fitDirFlag, bot, chatId, currentUser,
 }
 
 // показывает заявку по команде
-bot.onText(/\/vpt_request_show(\d+)/, async (msg, match) => {
+bot.onText(/\/vpt(\d+)/, async (msg, match) => {
 
     const chatId = msg.chat.id;
     const vptRequestId = match[1];    // 56

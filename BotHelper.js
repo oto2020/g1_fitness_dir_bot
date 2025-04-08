@@ -66,7 +66,7 @@ class BotHelper {
                         : v.status === 'rejected' ? '❌ отклонено'
                             : 'нет статуса';
                 let trainerTag = v.user ? this.getTag(v.user.name, v.goal) : null;
-                return `${this.goalRusWithEmojii(v.goal)} ${v.visitTime}` + ` (${statusText}) ` +`\n/vpt_request_show${v.id}` + (trainerTag ? `\n${trainerTag} ` : '\nТренер не назначен');
+                return `${this.goalRusWithEmojii(v.goal)} ${v.visitTime}` + ` (${statusText}) ` +`\n/vpt${v.id}` + (trainerTag ? `\n${trainerTag} ` : '\nТренер не назначен');
             }).join('\n\n');
         }
         return vptRequestsString;
@@ -142,14 +142,11 @@ class BotHelper {
         return result;
     }
 
-    static captionTextForTrainer(firstRow, vptRequest, lastRow) {
-        const statusText =
-            vptRequest.status === 'none' ? 'неразобрано'
-                : vptRequest.status === 'accepted' ? 'принято'
-                    : vptRequest.status === 'rejected' ? 'отклонено'
-                        : 'нет статуса';
-
+    static async captionTextForTrainer(prisma, firstRow, vptRequest, lastRow) {
+  
+        let vptRequestsByPhoneString = await this.vptRequestsByPhoneString(prisma, vptRequest.phoneNumber);
         let result = firstRow +
+            `${vptRequestsByPhoneString}\n\n` +
             `${vptRequest.anketa}\n\n` +
             `✍️ Комментарий:  ${vptRequest.comment}\n` +
             `${this.goalRusWithEmojii(vptRequest.goal)}\n` +
@@ -278,7 +275,7 @@ class BotHelper {
 
         let firstRow = `Тренер @${trainer.nick} взять клиента на ВПТ\n\n`;
         let lastRow = `\n\n⚠️ Если не нажать на кнопку "Беру" / "Не беру" в течение двух суток (до ${this.nowPlus48Hours()}), клиент будет передан другому тренеру, а ваша эффективность будет снижена. Заинтересованный клиент ждёт.`
-        let captionText = this.captionTextForTrainer(firstRow, vptRequest, lastRow);
+        let captionText = await this.captionTextForTrainer(prisma, firstRow, vptRequest, lastRow);
         let apiSendPhotoObj = await this.apiSendPhotoUrl(bot, trainer.chatId, client.photoUrl, captionText);
         if (!apiSendPhotoObj) {
             bot.sendMessage(chatId, 'Ошибка при получении фото');
@@ -309,7 +306,7 @@ class BotHelper {
         await this.updateVptRequestUserId(prisma, vptRequest.id, trainer.id);
         await this.updateVptRequestCreatedAt(prisma, vptRequest.id);
 
-        bot.sendMessage(chatId, `Отправлено ${newTag}\nПросмотр: /vpt_request_show${vptRequest.id}`);
+        bot.sendMessage(chatId, `Отправлено ${newTag}\nПросмотр: /vpt${vptRequest.id}`);
 
         return messageId;
     }
