@@ -588,6 +588,14 @@ bot.on('message', async (msg) => {
         console.log(`phone: ${phone}, comment: ${comment}`);
         let anketaObj = await BotHelper.anketaByPhoneSearchAndGoalChoosing(prisma, phone, bot, chatId, comment);
 
+        // после получения анкеты если уже есть заявки по этому номеру -- нужно во всех обновить фото
+        let vptRequests = await BotHelper.getRequestsByPhone(prisma, '+' + phone);
+        if (anketaObj && vptRequests) {
+            for (let v of vptRequests) {
+                BotHelper.updateVPTRequestPhoto(prisma, v.id, anketaObj.fileId);
+            }
+        }
+
         // Эти данные будут далее использованы после выбора подразделения/времени в анкете передаваемой фитдиру в vc goal и vc time
         anketas[phone] = anketaObj?.anketa
         comments[phone] = anketaObj?.comment;

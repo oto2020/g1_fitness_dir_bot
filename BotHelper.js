@@ -759,6 +759,7 @@ class BotHelper {
             return requests;
         } catch (error) {
             console.error('Ошибка при получении заявок:', error);
+            return null;
         }
     }
 
