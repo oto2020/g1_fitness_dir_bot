@@ -586,7 +586,7 @@ bot.on('message', async (msg) => {
     if (parsedMessage?.phone) {
         const { phone, comment } = parsedMessage;
         console.log(`phone: ${phone}, comment: ${comment}`);
-        let anketaObj = await BotHelper.anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment);
+        let anketaObj = await BotHelper.anketaByPhoneSearchAndGoalChoosing(prisma, phone, bot, chatId, comment);
 
         // Эти данные будут далее использованы после выбора подразделения/времени в анкете передаваемой фитдиру в vc goal и vc time
         anketas[phone] = anketaObj?.anketa
@@ -691,9 +691,9 @@ bot.on('callback_query', async (query) => {
                 if (visitTime) {
                     try {
                         let phoneWithoutPlus = param4;
-                        let existingVptRequest = await BotHelper.checkVPTRequestExists(prisma, '+' + phoneWithoutPlus, goalRus, visitTime);
+                        let existingVptRequest = await BotHelper.checkVPTRequestExists(prisma, '+' + phoneWithoutPlus, goalRus);
                         if (existingVptRequest) {
-                            bot.sendMessage(chatId, `Заявка уже существует для +${phoneWithoutPlus}, ${goalRus}, ${visitTime}\nПросмотр: /vpt_request_show${existingVptRequest.id}`);
+                            bot.sendMessage(chatId, `Заявка уже существует для +${phoneWithoutPlus}, ${goalRus}\nПросмотр: /vpt_request_show${existingVptRequest.id}`);
                             return;
                         }
                         // Никнейми и ФИО того, кто нажал на кнопку
@@ -716,7 +716,7 @@ bot.on('callback_query', async (query) => {
                             // Телеграм ИД автора заявки
                             let authorTelegramID = screenshotUser.uniqueId;
                             // Начало истории заявки: создание заявки
-                            let history = `${BotHelper.nowDateTime()}\n🎯 Отправлено на распределение`;
+                            let history = `${BotHelper.nowDateTime()}\n🎯 Отправлено на распределение ФД`;
 
                             // СОЗДАНИЕ ЗАЯВКИ ЗАПИСЬ В БД 
                             vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoId, comment, anketa, history, tag, goalRus, `${chatId}@${messageId}`);
@@ -841,7 +841,7 @@ bot.on('callback_query', async (query) => {
             let firstRow = `✅ Заявка взята в работу\n\n`;
             let lastRow = `\n\nТренер: ${trainer.name}`;
             let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
-            let captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow);
+            let captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, lastRow);
             // Отправляем, сохраняем сообщение для удаления
             await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, process.env.GROUP_ID, captionText);
         }
@@ -869,14 +869,14 @@ bot.on('callback_query', async (query) => {
                     let firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Назначить другого тренера\n\n`;
                     let lastRow = `\n\nТренер: ${trainer.name}`;
                     let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
-                    let captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow);
+                    let captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, lastRow);
                     // Отправляем, сохраняем сообщение для удаления
                     await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, process.env.GROUP_ID, captionText);
 
                     // Отправляем ФитДиру
                     let fitDirUser = await BotHelper.getFitDirUser(prisma);
                     firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\nФД @${fitDirUser.nick}\n⚠️ Назначить другого тренера\n\n`;
-                    captionText = BotHelper.captionTextForFitDir(firstRow, vptRequest, screenshotUser, ``);
+                    captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, ``);
                     // Отправляем, сохраняем сообщение для удаления
                     let { sentMessage } = await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, fitDirUser.chatId, captionText);
                     // Добавляем клавиатуру с тренерами
@@ -1210,7 +1210,7 @@ async function sendSingleVPTRequestMessage(fitDirFlag, bot, chatId, currentUser,
     let captionText = '';
     if (fitDirFlag) {
         let screenshotUser = await BotHelper.getScreenshotUserById(prisma, request.screenshotUserId);
-        captionText = BotHelper.captionTextForFitDir(``, request, screenshotUser, ``);
+        captionText = await BotHelper.captionTextForFitDir(prisma, ``, request, screenshotUser, ``);
     }
     else {
         captionText = BotHelper.captionTextForTrainer(``, request, ``);
@@ -1251,7 +1251,9 @@ async function sendSingleVPTRequestMessage(fitDirFlag, bot, chatId, currentUser,
     let sentMessage;
     // Шаг 4: Отправляем сообщение
     try {
-        if (request.photo) {
+        try {
+            console.log(request.photo);
+
             // Если есть фото и функция sendPhotoWithRetry передана —
             // используем её, иначе стандартное bot.sendPhoto
             if (typeof sendPhotoWithRetry === 'function') {
@@ -1259,15 +1261,17 @@ async function sendSingleVPTRequestMessage(fitDirFlag, bot, chatId, currentUser,
                     reply_markup: { inline_keyboard }
                 });
             } else {
+                console.log(`Отправлено сообщение с фото:\n${request.photo}`);
                 // Стандартная отправка
                 sentMessage = await bot.sendPhoto(chatId, request.photo, {
                     caption: captionText,
                     reply_markup: { inline_keyboard }
                 });
             }
-        } else {
-            // Если нет фото, просто sendMessage
-            sentMessage = await bot.sendMessage(chatId, captionText, {
+        } catch (e) {
+            console.error(`Не удалось отправить фото:\n${request.photo}`);
+            // Если не получилось отправить фото, просто sendMessage
+            sentMessage = await bot.sendMessage(chatId, '[Не удалось отправить фото]\n\n' + captionText, {
                 reply_markup: { inline_keyboard }
             });
         }

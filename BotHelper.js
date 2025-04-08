@@ -55,15 +55,35 @@ class BotHelper {
         }
     }
 
-    static async anketaByPhoneSearchAndGoalChoosing(phone, bot, chatId, comment) {
+    static async vptRequestsByPhoneString (prisma, phoneWithPlus) {
+        let vptRequests = await this.getRequestsByPhone(prisma, phoneWithPlus);
+        let vptRequestsString;
+        if (vptRequests) {
+            vptRequestsString = vptRequests.map(v => {
+                const statusText =
+                v.status === 'none' ? '⏳ неразобрано'
+                    : v.status === 'accepted' ? '✅ принято'
+                        : v.status === 'rejected' ? '❌ отклонено'
+                            : 'нет статуса';
+                let trainerTag = v.user ? this.getTag(v.user.name, v.goal) : null;
+                return `${this.goalRusWithEmojii(v.goal)} ${v.visitTime}` + ` (${statusText}) ` +`\n/vpt_request_show${v.id}` + (trainerTag ? `\n${trainerTag} ` : '\nТренер не назначен');
+            }).join('\n\n');
+        }
+        return vptRequestsString;
+    }
+    static async anketaByPhoneSearchAndGoalChoosing(prisma, phone, bot, chatId, comment) {
         const clientData = await this.apiClientData(phone);
         if (!clientData) {
             return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
         }
 
         const { ticketsText, client } = clientData;
+
+        let vptRequestsString = await this.vptRequestsByPhoneString(prisma, '+' + client.phone);
+
         let anketa = `${ticketsText}\n${client.name} (${client.birthDate})\n+${client.phone}`;
-        let captionText = `${client.tags}\n\n` +
+        let captionText = 
+            (vptRequestsString ? vptRequestsString + '\n\n' : '') +
             `${anketa}\n\n` +
             `Ваш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n` +
             `✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
@@ -88,15 +108,16 @@ class BotHelper {
         return { comment, tags: client.tags, anketa, fileId };
     }
 
-    static captionTextForFitDir(firstRow, vptRequest, screenshotUser, lastRow) {
+    static async captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, lastRow) {
         const statusText =
             vptRequest.status === 'none' ? 'неразобрано'
                 : vptRequest.status === 'accepted' ? 'принято'
                     : vptRequest.status === 'rejected' ? 'отклонено'
                         : 'нет статуса';
 
+        let vptRequestsByPhoneString = await this.vptRequestsByPhoneString(prisma, vptRequest.phoneNumber);
         let result = firstRow +
-            `${vptRequest.tags}\n\n` +
+            `${vptRequestsByPhoneString}\n\n` +
             `${vptRequest.anketa}\n\n` +
             `✍️  \"${vptRequest.comment}\"\n` +
             `${this.goalRusWithEmojii(vptRequest.goal)}\n` +
@@ -152,12 +173,11 @@ class BotHelper {
 
 
     // Возвращает vptReuest заявки, которая уже существует с phoneNumber, goal, visitTime
-    static async checkVPTRequestExists(prisma, phoneNumber, goal, visitTime) {
+    static async checkVPTRequestExists(prisma, phoneNumber, goal) {
         const existingRequest = await prisma.vPTRequest.findFirst({
             where: {
                 phoneNumber: phoneNumber,
-                goal: goal,
-                visitTime: visitTime
+                goal: goal
             }
         });
         return existingRequest;
@@ -175,7 +195,7 @@ class BotHelper {
                 // Получаем анкету по API
                 let clientData = await this.apiClientData(phoneWithoutPlus);
                 if (!clientData) {
-                    return ;
+                    return;
                 }
 
                 // Собираем ТЕГ ТРЕНЕРА
@@ -285,7 +305,7 @@ class BotHelper {
         // Обновляем в vptRequest добавляем "|chatId@messageId" в vptRequest.tgChatIdMessageId
         let newTgChatMessageId = `${vptRequest.tgChatMessageId}|${trainer.chatId}@${messageId}`;
         await this.updateVptRequestTgChatMessageId(prisma, vptRequest.id, newTgChatMessageId);
-        
+
         await this.updateVptRequestUserId(prisma, vptRequest.id, trainer.id);
         await this.updateVptRequestCreatedAt(prisma, vptRequest.id);
 
@@ -312,7 +332,7 @@ class BotHelper {
 
         // отправляем ФИТДИРУ сообщение с фото, пока без кнопок
         let firstRow = `ФД @${fitDirUser.nick} назначить тренера \n\n`;
-        let captionText = this.captionTextForFitDir(firstRow, vptRequest, screenshotUser, '');
+        let captionText = await this.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, '');
         let sentMessage = '';
         try {
             sentMessage = await bot.sendPhoto(fitDirChatId, requestVptPhotoId, {
@@ -591,17 +611,17 @@ class BotHelper {
     static nowPlus48Hours() {
         let now = new Date();
         now.setHours(now.getHours() + 48); // Добавляем 48 часов
-    
+
         let newDateTime = now.toLocaleString('ru-RU', {
             timeZone: 'Europe/Moscow',
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
         });
-    
+
         return newDateTime;
     }
-    
-    
+
+
     static async getExpiredRequests(prisma) {
         const twoDaysAgo = new Date();
         twoDaysAgo.setHours(twoDaysAgo.getHours() - 48); // Отнимаем 48 часов
@@ -617,26 +637,26 @@ class BotHelper {
 
     static tomorrowDateTime14h00m() {
         let now = new Date();
-    
+
         // Добавляем 1 день
         now.setDate(now.getDate() + 1);
-    
+
         // Устанавливаем время на 14:00
         now.setHours(14, 0, 0, 0);
-    
+
         let formattedDateTime = now.toLocaleString('ru-RU', {
-            timeZone: 'Europe/Moscow', 
-            day: '2-digit', 
-            month: '2-digit', 
+            timeZone: 'Europe/Moscow',
+            day: '2-digit',
+            month: '2-digit',
             year: 'numeric',
-            hour: '2-digit', 
+            hour: '2-digit',
             minute: '2-digit'
         });
-    
+
         return formattedDateTime;
     }
 
-    
+
     static async getFitDirUser(prisma) {
         const fitDirPhone = process.env.FIT_DIR_PHONE;
         if (!fitDirPhone) {
@@ -724,6 +744,24 @@ class BotHelper {
         }
     }
 
+    static async getRequestsByPhone(prisma, phoneWithPlus) {
+        try {
+            const requests = await prisma.vPTRequest.findMany({
+                where: {
+                    phoneNumber: phoneWithPlus
+                },
+                include: {
+                    user: true,
+                    screenshotUser: true
+                }
+            });
+
+            return requests;
+        } catch (error) {
+            console.error('Ошибка при получении заявок:', error);
+        }
+    }
+
     static async deleteVPTRequestById(prisma, id) {
         try {
             const deletedRequest = await prisma.vPTRequest.delete({
@@ -761,11 +799,11 @@ class BotHelper {
     }
 
     // Отправляет сообщение и обновляет историю
-    static async anketaForVptRequest (bot, prisma, vptRequest, chatId, captionText) {
+    static async anketaForVptRequest(bot, prisma, vptRequest, chatId, captionText) {
         try {
             let sentMessage = '';
             try {
-                sentMessage = await bot.sendPhoto(chatId, vptRequest.photo, { caption: captionText }); 
+                sentMessage = await bot.sendPhoto(chatId, vptRequest.photo, { caption: captionText });
             } catch (e) {
                 sentMessage = await bot.sendMessage(chatId, 'Не удалось загрузить фото\n\n' + captionText);
             }
@@ -857,7 +895,7 @@ class BotHelper {
                 where: { id },
                 data: { createdAt: new Date() }
             });
-    
+
             return updatedRequest;
         } catch (error) {
             console.error(`Ошибка обновления created_at для vPTRequest с id ${id}:`, error);
@@ -865,7 +903,7 @@ class BotHelper {
         }
     }
 
-    
+
     static async updateVptRequestUserId(prisma, id, userId) {
         try {
             const updatedRequest = await prisma.vPTRequest.update({
