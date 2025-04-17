@@ -423,8 +423,8 @@ class BotHelper {
             let filePath;
 
             if (!photoUrl) {
-                // Если URL пустой, используем локальный файл g1.jpeg
-                filePath = path.join(__dirname, 'g1.jpeg');
+                // Если URL пустой, используем локальный файл logo.jpeg
+                filePath = path.join(__dirname, 'logo.jpeg');
             } else {
                 let apiFilePath = await this.fetchPhotoWithRetry(photoUrl);
                 filePath = apiFilePath || filePath;
