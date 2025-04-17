@@ -1,5 +1,7 @@
 node_modules
-# Keep environment variables out of version control
+# Добавить .env для нужного клуба
 .env*
+# Добавить logo.jpeg для нужного клуба
+logo*
+# Задать массив подразделений, в которых проводятся ВПТ
 goals.json
-logo.jpeg
