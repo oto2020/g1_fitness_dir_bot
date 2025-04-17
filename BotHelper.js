@@ -3,6 +3,9 @@ const fs = require('fs');
 const axios = require('axios');
 const path = require('path');
 
+const goalsPath = path.join(__dirname, 'goals.json');
+const goalsData = JSON.parse(fs.readFileSync(goalsPath, 'utf8'));
+
 class BotHelper {
 
     // Работает с API, выдает анкету клиента по номеру телефона
@@ -55,18 +58,18 @@ class BotHelper {
         }
     }
 
-    static async vptRequestsByPhoneString (prisma, phoneWithPlus) {
+    static async vptRequestsByPhoneString(prisma, phoneWithPlus) {
         let vptRequests = await this.getRequestsByPhone(prisma, phoneWithPlus);
         let vptRequestsString;
         if (vptRequests) {
             vptRequestsString = vptRequests.map(v => {
                 const statusText =
-                v.status === 'none' ? '⏳ неразобрано'
-                    : v.status === 'accepted' ? '✅ принято'
-                        : v.status === 'rejected' ? '❌ отклонено'
-                            : 'нет статуса';
+                    v.status === 'none' ? '⏳ неразобрано'
+                        : v.status === 'accepted' ? '✅ принято'
+                            : v.status === 'rejected' ? '❌ отклонено'
+                                : 'нет статуса';
                 let trainerTag = v.user ? this.getTag(v.user.name, v.goal) : null;
-                return `${this.goalRusWithEmojii(v.goal)} ${v.visitTime}` + ` (${statusText}) ` +`\n/vpt${v.id}` + (trainerTag ? `\n${trainerTag} ` : '\nТренер не назначен');
+                return `${this.goalRusWithEmojii(v.goal)} ${v.visitTime}` + ` (${statusText}) ` + `\n/vpt${v.id}` + (trainerTag ? `\n${trainerTag} ` : '\nТренер не назначен');
             }).join('\n\n');
         }
         return vptRequestsString;
@@ -82,7 +85,7 @@ class BotHelper {
         let vptRequestsString = await this.vptRequestsByPhoneString(prisma, '+' + client.phone);
 
         let anketa = `${ticketsText}\n${client.name} (${client.birthDate})\n+${client.phone}`;
-        let captionText = 
+        let captionText =
             (vptRequestsString ? vptRequestsString + '\n\n' : '') +
             `${anketa}\n\n` +
             `Ваш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n` +
@@ -95,14 +98,19 @@ class BotHelper {
         }
         const { fileId, messageId } = apiSendPhotoObj;
 
-        let inline_keyboard = [
+        const inline_keyboard = [
+            goalsData.map(g => ({
+                text: g.goalRusWithEmojii,
+                callback_data: `vc_goal@${g.goal}@${messageId}@${phone}`,
+            })),
             [
-                { text: "ТЗ 🏋🏼‍♂️", callback_data: `vc_goal@tz@${messageId}@${phone}` },
-                { text: "ГП 🤸🏻‍♀️", callback_data: `vc_goal@gp@${messageId}@${phone}` },
-                { text: "Аква 🏊", callback_data: `vc_goal@aq@${messageId}@${phone}` }
-            ],
-            [{ text: "✖️ Закрыть", callback_data: `vc_goal@cancel@${messageId}@${phone}` }]
+                {
+                    text: "✖️ Закрыть",
+                    callback_data: `vc_goal@cancel@${messageId}@${phone}`,
+                }
+            ]
         ];
+
         await this.updateInlineKeyboard(bot, chatId, messageId, inline_keyboard);
 
         return { comment, tags: client.tags, anketa, fileId };
@@ -143,7 +151,7 @@ class BotHelper {
     }
 
     static async captionTextForTrainer(prisma, firstRow, vptRequest, lastRow) {
-  
+
         let vptRequestsByPhoneString = await this.vptRequestsByPhoneString(prisma, vptRequest.phoneNumber);
         let result = firstRow +
             `${vptRequestsByPhoneString}\n\n` +
@@ -525,9 +533,14 @@ class BotHelper {
         function getMembershipServices(el) {
             return (el.type === 'membership' && el.service_list && el.service_list.length > 0)
                 ? 'Не использовано:\n' + el.service_list
-                    .map(ss => `🔥 ${ss.title}\nОстаток: ${ss.count}, резерв: ${ss.count_reserves}`).join('\n') + '\n'
+                    .map(ss => {
+                        const hasInfinity = ss.count == null || ss.count_reserves == null;
+                        return `🔥 ${ss.title}${hasInfinity ? ' ♾️' : `\nОстаток: ${ss.count}, резерв: ${ss.count_reserves}`}`;
+                    })
+                    .join('\n') + '\n'
                 : '';
         }
+
 
         function getEndDate(el) {
             return el.end_date
@@ -948,20 +961,17 @@ class BotHelper {
         return '@' + (query?.from?.username || 'НетНикнейма') + ' (' + (query?.from?.first_name || 'НетИмени ') + ' ' + (query?.from?.last_name || 'НетФамилии') + ')'; // Никнейм (может отсутствовать)
     }
 
+
+    static getGoalData(goal) {
+        return goalsData.find(g => g.goal === goal || g.goalRus === goal) || { goal, goalRus: goal, goalRusWithEmojii: goal };
+    }
+
     static goalRus(goal) {
-        let goalRus = goal;
-        if (goal === 'tz') { goalRus = 'ТЗ'; }
-        if (goal === 'gp') { goalRus = 'ГП'; }
-        if (goal === 'aq') { goalRus = 'Аква'; }
-        return goalRus;
+        return this.getGoalData(goal).goalRus;
     }
 
     static goalRusWithEmojii(goal) {
-        let goalRus = goal;
-        if (goal === 'tz' || goal === 'ТЗ') { goalRus = '🏋🏼‍♂️ ТЗ'; }
-        if (goal === 'gp' || goal === 'ГП') { goalRus = '🤸🏻‍♀️ ГП'; }
-        if (goal === 'aq' || goal === 'Аква') { goalRus = '🏊 Аква'; }
-        return goalRus;
+        return this.getGoalData(goal).goalRusWithEmojii;
     }
 
     static visitTimeWithEmojii(visitTime) {

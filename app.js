@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 
 const bodyParser = require('body-parser');
@@ -25,6 +27,10 @@ const prisma = new PrismaClient();
 
 // Инициализация Telegram Bot
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
+
+// Загружаем JSON-файл
+const goalsPath = path.join(__dirname, 'goals.json');
+const goalsData = JSON.parse(fs.readFileSync(goalsPath, 'utf8'));
 
 // Временное хранилище для шагов регистрации
 const userSteps = {};
@@ -460,6 +466,7 @@ bot.onText(/\/users/, async (msg) => {
 
     // Проверяем роль тренера
     if (!user || user.role !== 'админ') {
+        if (!user) { bot.sendMessage(chatId, 'Чтобы использовать эту команду:\n1. Пройдите регистрацию.\n2. Запросите права администратора у @igo4ek'); return; }
         bot.sendMessage(chatId, '❌ ' + user.name + ', у вас недостаточно прав для выполнения этой команды.\n' + 'Ваша роль: ' + user.role);
         return;
     }
@@ -560,7 +567,11 @@ bot.on('contact', async (msg) => {
         userSteps[chatId].nick = msg.from.username || 'нет'; // Сохраняем nick
         userSteps[chatId].step = 1;
 
-        bot.sendMessage(chatId, 'Спасибо за контакт! Теперь, пожалуйста, введите ваше ФИО:');
+        bot.sendMessage(chatId, 'Спасибо за контакт! ✅\nТеперь, пожалуйста, отправьте ваше ФИО в ответном сообщении', {
+            reply_markup: {
+                remove_keyboard: true
+            }
+        });
     }
 });
 
@@ -614,7 +625,7 @@ bot.on('message', async (msg) => {
         userSteps[chatId].name = msg.text;
         userSteps[chatId].step = 2;
 
-        bot.sendMessage(chatId, 'Теперь введите вашу должность\nТренер/Руководитель подразделения/Директор');
+        bot.sendMessage(chatId, 'Теперь введите вашу должность в произвольной форме\nНапример: Тренер/Руководитель подразделения/Директор');
     } else if (step === 2 && msg.text) {
         userSteps[chatId].position = msg.text;
         userSteps[chatId].step = 3;
@@ -852,8 +863,8 @@ bot.on('callback_query', async (query) => {
             // let captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, lastRow);
             let goalRusWithEmojii = BotHelper.goalRusWithEmojii(vptRequest.goal);
             let visitTimeWithEmojii = BotHelper.visitTimeWithEmojii(vptRequest.visitTime);
-            let captionText = 
-                `✅ Заявка #${vptRequest.id} взята в работу\n\n` + 
+            let captionText =
+                `✅ Заявка #${vptRequest.id} взята в работу\n\n` +
                 `Тренер: ${trainer.name}\n\n` +
                 `Цель: ${goalRusWithEmojii}\n\n` +
                 `Время: ${visitTimeWithEmojii}\n\n` +
@@ -884,8 +895,8 @@ bot.on('callback_query', async (query) => {
                     // Отправляем в чат группы
                     let goalRusWithEmojii = BotHelper.goalRusWithEmojii(vptRequest.goal);
                     let visitTimeWithEmojii = BotHelper.visitTimeWithEmojii(vptRequest.visitTime);
-                    let captionText = 
-                        `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Отправлено ФитДиру назначить другого тренера\n\n` + 
+                    let captionText =
+                        `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Отправлено ФитДиру назначить другого тренера\n\n` +
                         `Тренер: ${trainer.name}\n\n` +
                         `Цель: ${goalRusWithEmojii}\n\n` +
                         `Время: ${visitTimeWithEmojii}\n\n` +
@@ -944,6 +955,7 @@ bot.on('callback_query', async (query) => {
         // Если выбор не сделан, добавляем его в список
         if (queryValue !== 'done' && !userSteps[chatId].selections.includes(selection)) {
             userSteps[chatId].selections.push(selection);
+            console.log(`Добавлен selection к выбору подразделений: ${selection}`);
         }
 
         if (queryValue === 'done') {
@@ -1016,7 +1028,7 @@ bot.on('callback_query', async (query) => {
             }
 
         } else {
-            bot.sendMessage(chatId, `Вы выбрали: ${userSteps[chatId].selections.join(', ')}`);
+            bot.sendMessage(chatId, `Вы выбрали: ${userSteps[chatId].selections.join(', ')}\n\nДля завершения регистрации нажмите на кнопку \n"Завершить регистрацию"`);
         }
     }
 });
@@ -1026,14 +1038,25 @@ bot.on('callback_query', async (query) => {
 /// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ///
 
 function sendVptListInlineKeyboard(bot, chatId, telegramID) {
-    bot.sendMessage(chatId, 'Если вы тренер, выберите подразделения, в которых работаете и планируете проводить ВПТ.\nЕсли вы не тренер -- просто нажмите "Завершить выбор":', {
+    // Формируем кнопки для Telegram
+    const goalButtons = goalsData.map(goal => [
+        {
+            text: `Я тренирую в "${goal.goalRus}"`,
+            callback_data: [`vpt_list`, goal.goal, telegramID].join('@'),
+        }
+    ]);
+
+    // Добавление кнопки завершения регистрации
+    goalButtons.push([
+        {
+            text: 'Завершить регистрацию',
+            callback_data: [`vpt_list`, `done`, telegramID].join('@'),
+        }
+    ]);
+
+    bot.sendMessage(chatId, 'Если вы тренер, выберите "Я тренирую в...".\nЧтобы закончить регистрацию, нажмите кнопку \n"Завершить регистрацию":', {
         reply_markup: {
-            inline_keyboard: [
-                [{ text: 'ТЗ', callback_data: [`vpt_list`, `tz`, telegramID].join('@') }],
-                [{ text: 'ГП', callback_data: [`vpt_list`, `gp`, telegramID].join('@') }],
-                [{ text: 'Аква', callback_data: [`vpt_list`, `aq`, telegramID].join('@') }],
-                [{ text: 'Завершить регистрацию', callback_data: [`vpt_list`, `done`, telegramID].join('@') }],
-            ],
+            inline_keyboard: goalButtons,
         },
     });
 }
