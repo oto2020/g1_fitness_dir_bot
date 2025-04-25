@@ -74,7 +74,7 @@ class BotHelper {
         }
         return vptRequestsString;
     }
-    static async anketaByPhoneSearchAndGoalChoosing(prisma, phone, bot, chatId, comment) {
+    static async anketaByPhoneSearchAndGoalChoosing(prisma, phone, bot, chatId, comment, isUserAdmin) {
         const clientData = await this.apiClientData(phone);
         if (!clientData) {
             return bot.sendMessage(chatId, 'Ошибка при получении данных клиента.');
@@ -82,7 +82,10 @@ class BotHelper {
 
         const { ticketsText, client } = clientData;
 
-        let vptRequestsString = await this.vptRequestsByPhoneString(prisma, '+' + client.phone);
+        let vptRequestsString;
+        if (isUserAdmin) {
+            vptRequestsString = await this.vptRequestsByPhoneString(prisma, '+' + client.phone);
+        }
 
         let anketa = `${ticketsText}\n${client.name} (${client.birthDate})\n+${client.phone}`;
         let captionText =
@@ -90,6 +93,17 @@ class BotHelper {
             `${anketa}\n\n` +
             `Ваш комментарий к заявке на ВПТ:\n✍️ ${comment}\n\n` +
             `✅ Чтобы отправить клиента на ВПТ используйте кнопки под этим сообщением 🙂`;
+
+        if (captionText.length > 1024) {
+            const excessLength = captionText.length - 1024;
+            const trimmedPart = captionText.slice(0, excessLength);
+            captionText = `...${captionText.slice(excessLength)}`;
+            
+            console.log('Обрезано в начале:', trimmedPart);
+            await bot.sendMessage(chatId, `${trimmedPart}...`);
+            }
+            
+            // console.log('Результат:', captionText);
 
         let apiSendPhotoObj = await this.apiSendPhotoUrl(bot, chatId, client.photoUrl, captionText);
         if (!apiSendPhotoObj) {
@@ -151,10 +165,7 @@ class BotHelper {
     }
 
     static async captionTextForTrainer(prisma, firstRow, vptRequest, lastRow) {
-
-        let vptRequestsByPhoneString = await this.vptRequestsByPhoneString(prisma, vptRequest.phoneNumber);
         let result = firstRow +
-            `${vptRequestsByPhoneString}\n\n` +
             `${vptRequest.anketa}\n\n` +
             `✍️ Комментарий:  ${vptRequest.comment}\n` +
             `${this.goalRusWithEmojii(vptRequest.goal)}\n` +

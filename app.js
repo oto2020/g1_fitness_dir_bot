@@ -586,6 +586,9 @@ const photoIds = {}; // Хранение в памяти id файла фото 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
 
+    const user = await getUserByChatId(chatId);
+    let isUserAdmin = user.role == 'админ';
+
     // Попробуем распарсить телефон и коммент
     console.log(msg.text);
     if (msg.text?.startsWith('/')) {
@@ -597,7 +600,7 @@ bot.on('message', async (msg) => {
     if (parsedMessage?.phone) {
         const { phone, comment } = parsedMessage;
         console.log(`phone: ${phone}, comment: ${comment}`);
-        let anketaObj = await BotHelper.anketaByPhoneSearchAndGoalChoosing(prisma, phone, bot, chatId, comment);
+        let anketaObj = await BotHelper.anketaByPhoneSearchAndGoalChoosing(prisma, phone, bot, chatId, comment, isUserAdmin);
 
         // после получения анкеты если уже есть заявки по этому номеру -- нужно во всех обновить фото
         let vptRequests = await BotHelper.getRequestsByPhone(prisma, '+' + phone);
