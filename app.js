@@ -586,14 +586,14 @@ const photoIds = {}; // Хранение в памяти id файла фото 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
 
-    const user = await getUserByChatId(chatId);
-    let isUserAdmin = user.role == 'админ';
-
     // Попробуем распарсить телефон и коммент
     console.log(msg.text);
     if (msg.text?.startsWith('/')) {
         return;
     }
+
+    const user = await getUserByChatId(chatId);
+    let isUserAdmin = user?.role == 'админ';
 
     let parsedMessage = BotHelper.parseMessage(msg.text);
 
