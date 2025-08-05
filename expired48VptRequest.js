@@ -28,7 +28,7 @@ async function processExpiredRequests() {
         }
 
         let ids = expiredRequests.map(el => ('#' + el.id));
-        let msg = `[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем фитнес-директору...\n${ids.join(' ')}`;
+        let msg = `[${nowDateTime}] Найдено ${expiredRequests.length} просроченных заявок. Отправляем руководителю...\n${ids.join(' ')}`;
         console.log(msg);
 
         bot.sendMessage(process.env.GROUP_ID, msg);
@@ -65,7 +65,7 @@ async function processExpiredRequests() {
 
                 // Отправляем Анкету Фитдиру. Это будет первое сообщение
                 await BotHelper.anketaToFitDir(bot, prisma, vptRequest);
-                console.log(`✅ Заявка ID ${vptRequest.id} успешно отправлена фитнес-директору.`);
+                console.log(`✅ Заявка ID ${vptRequest.id} успешно отправлена руководителю.`);
             } catch (error) {
                 console.error(`❌ Ошибка при отправке заявки ID ${vptRequest.id}:`, error);
             }

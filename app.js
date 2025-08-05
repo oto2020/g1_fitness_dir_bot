@@ -899,7 +899,7 @@ bot.on('callback_query', async (query) => {
                     let goalRusWithEmojii = BotHelper.goalRusWithEmojii(vptRequest.goal);
                     let visitTimeWithEmojii = BotHelper.visitTimeWithEmojii(vptRequest.visitTime);
                     let captionText =
-                        `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Отправлено ФитДиру назначить другого тренера\n\n` +
+                        `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n⚠️ Отправлено руководителю назначить другого тренера\n\n` +
                         `Тренер: ${trainer.name}\n\n` +
                         `Цель: ${goalRusWithEmojii}\n\n` +
                         `Время: ${visitTimeWithEmojii}\n\n` +
