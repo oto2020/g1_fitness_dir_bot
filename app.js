@@ -738,7 +738,7 @@ bot.on('callback_query', async (query) => {
                             // Телеграм ИД автора заявки
                             let authorTelegramID = screenshotUser.uniqueId;
                             // Начало истории заявки: создание заявки
-                            let history = `${BotHelper.nowDateTime()}\n🎯 Отправлено на распределение ФД`;
+                            let history = `${BotHelper.nowDateTime()}\n🎯 Отправлено на распределение руководителю`;
 
                             // СОЗДАНИЕ ЗАЯВКИ ЗАПИСЬ В БД 
                             vptRequest = await BotHelper.createVPTRequest(prisma, trainerTelegramID, authorTelegramID, visitTime, clientPhone, photoId, comment, anketa, history, tag, goalRus, `${chatId}@${messageId}`);
@@ -908,8 +908,8 @@ bot.on('callback_query', async (query) => {
 
                     // Отправляем ФитДиру
                     let screenshotUser = await BotHelper.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
-                    let fitDirUser = await BotHelper.getFitDirUser(prisma);
-                    firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\nФД @${fitDirUser.nick}\n⚠️ Назначить другого тренера\n\n`;
+                    let fitDirUser = await BotHelper.getFitDirUser(prisma, vptRequest.goal);
+                    firstRow = `❌ ${BotHelper.getTag(trainer.name, vptRequest.goal)}\nПричина отказа: "${rejectionReason}"\n@${fitDirUser.nick}\n⚠️ Назначить другого тренера\n\n`;
                     captionText = await BotHelper.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, ``);
                     // Отправляем, сохраняем сообщение для удаления
                     let { sentMessage } = await BotHelper.anketaForVptRequest(bot, prisma, vptRequest, fitDirUser.chatId, captionText);

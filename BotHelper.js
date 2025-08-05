@@ -339,7 +339,8 @@ class BotHelper {
         let screenshotUser = await this.getScreenshotUserById(prisma, vptRequest.screenshotUserId);
         console.log('Ща отправим фото и мегакоммент с кнопками выбора тренеров');
 
-        let fitDirUser = await this.getFitDirUser(prisma);
+        // Определяем ФитДира в зависимости от направления goal
+        let fitDirUser = await this.getFitDirUser(prisma, vptRequest.goal);
         if (!fitDirUser) {
             bot.sendMessage('ФитДир не найден, проверьте настройки .env');
             return;
@@ -347,7 +348,7 @@ class BotHelper {
         let fitDirChatId = fitDirUser.chatId;
 
         // отправляем ФИТДИРУ сообщение с фото, пока без кнопок
-        let firstRow = `ФД @${fitDirUser.nick} назначить тренера \n\n`;
+        let firstRow = `@${fitDirUser.nick} назначить тренера \n\n`;
         let captionText = await this.captionTextForFitDir(prisma, firstRow, vptRequest, screenshotUser, '');
         let sentMessage = '';
         try {
@@ -678,10 +679,12 @@ class BotHelper {
     }
 
 
-    static async getFitDirUser(prisma) {
-        const fitDirPhone = process.env.FIT_DIR_PHONE;
+    static async getFitDirUser(prisma, goal) {
+        // const fitDirPhone = process.env.FIT_DIR_PHONE;
+
+        let fitDirPhone = this.goalFitDirPhone(goal);
         if (!fitDirPhone) {
-            console.error("FIT_DIR_PHONE не задан в .env");
+            console.error("fitDirUserPhone не задан в goals");
             return null;
         }
 
@@ -975,6 +978,10 @@ class BotHelper {
 
     static getGoalData(goal) {
         return goalsData.find(g => g.goal === goal || g.goalRus === goal) || { goal, goalRus: goal, goalRusWithEmojii: goal };
+    }
+
+    static goalFitDirPhone(goal) {
+        return this.getGoalData(goal).fitDirUserPhone;
     }
 
     static goalRus(goal) {
