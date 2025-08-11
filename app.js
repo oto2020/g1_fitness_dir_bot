@@ -1511,7 +1511,7 @@ app.post('/vptrequests', async (req, res) => {
 
         // Формируем итоговый массив для ответа
         const data = requests.map(r => ({
-            id: r.id,
+            id: r.id.toString(),
             createdAt: r.createdAt,
             goal: r.goal,
             name: r.user?.name ?? null, // user может быть null, если удалён/не найден
